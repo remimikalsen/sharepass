@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CredShare.app - Secure password sharing</title>
+    <link rel="icon" href="/static/favicon.png" type="image/png">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <header>
+        <a href="/" class="logo-link"><h1>CredShare.app</h1></a>
+    </header>
+    <main>
+        <div id="secret-container" class="container">
+            <h2>Share a secret</h2>
+            <div id="secret-upload-form-container">
+                <label for="secret">
+                    The secret
+                    <textarea id="secret" name="secret" placeholder="What you share..."></textarea>
+                </label>
+                <label for="key">
+                    The encryption key
+                    <input type="text" name="key" placeholder="How you unlock it..." >
+                </label>
+                <button id="upload-button" onclick="uploadSecret()">Share it!</button>
+            </div>
+            <p class="secret-upload-helptext">
+                Your secret will be encrypted with the encryption key you provide, and you will get a link you can use to share the secret safely.
+                The encrypted secret will be stored temporarily on our servers, but we won't have the key to unlock it.
+                The encrypted secret can only be unlocked with the key you provide. It will be deleted once unlocked, or after {{ max_attempts }} unsuccessful unlocking attempts. <br /><br />
+                The sharing link expires after {{ secret_expiry_hours }} hours, {{ secret_expiry_minutes }} minutes. <br />Shortly after, the encrypted secret is deleted too.
+            </p>
+            <div id="loading-overlay">
+                <img src="/static/spinner.gif" alt="Loading...">
+            </div>            
+        </div>
+
+        <div id="status-wrapper">
+            <div id="success-message"></div>
+            <div id="error-message"></div>
+        </div>
+        <p class="quota-info"></p>
+    </main>
+    <footer>
+        <p>
+            Brought to you by <a href="https://theawesomegarage.com" target="_blank">TheAwesomeGarage.com</a>
+        </p>
+        <p>
+            View the source code on <a href="https://github.com/remimikalsen/sharepass" target="_blank">GitHub.com</a>
+        </p>
+    </footer>
+    <div id="link-copy-notification" style="display: none;"></div>
+
+    <script src="/static/js/feather.min.js"></script>
+    <script>
+        feather.replace();
+        const secretContainer = document.getElementById('secret-container');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const statusWrapper = document.getElementById('status-wrapper');
+        const successMessage = document.getElementById('success-message');
+        const errorMessage = document.getElementById('error-message');
+        const linkCopyNotification = document.getElementById('link-copy-notification');
+
+        const secret = document.querySelector('textarea[name="secret"]');
+        const key = document.querySelector('input[name="key"]');
+
+
+        function showLoading() {
+            // Grey out the container and show the loading overlay
+            secretContainer.classList.add('greyed');
+            loadingOverlay.classList.add('visible');
+        }
+
+        function hideLoading() {
+            // Remove the grey-out and hide the loading overlay
+            secretContainer.classList.remove('greyed');
+            loadingOverlay.classList.remove('visible');
+        }
+
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+
+        async function encryptSecret(secretText, password) {
+            const enc = new TextEncoder();
+
+            // Generate random salt and IV
+            const salt = window.crypto.getRandomValues(new Uint8Array(16)); // 16 bytes salt
+            const iv = window.crypto.getRandomValues(new Uint8Array(12)); // 12 bytes IV for AES-GCM
+
+            // Import the password as a key for PBKDF2
+            const passwordKey = await window.crypto.subtle.importKey(
+                "raw",
+                enc.encode(password),
+                "PBKDF2",
+                false,
+                ["deriveKey"]
+            );
+
+            // Derive an AES-GCM key from the password
+            const aesKey = await window.crypto.subtle.deriveKey(
+                {
+                name: "PBKDF2",
+                salt: salt,
+                iterations: 100000, // Adjust iterations as needed
+                hash: "SHA-256"
+                },
+                passwordKey,
+                { name: "AES-GCM", length: 256 },
+                false,
+                ["encrypt"]
+            );
+
+            // Encrypt the secret text
+            const ciphertextBuffer = await window.crypto.subtle.encrypt(
+                {
+                name: "AES-GCM",
+                iv: iv
+                },
+                aesKey,
+                enc.encode(secretText)
+            );
+
+            // Encode the salt, iv, and ciphertext as Base64 so they can be sent as a string
+            const encryptedData = {
+                salt: arrayBufferToBase64(salt),
+                iv: arrayBufferToBase64(iv),
+                ciphertext: arrayBufferToBase64(ciphertextBuffer)
+            };
+
+            // Return the JSON string of the encrypted data
+            return JSON.stringify(encryptedData);
+        }        
+
+
+        async function uploadSecret() {
+            if (secret.value === '' || key.value === '') {
+                showError('Please enter a secret and a key.');
+                return;
+            }
+            
+            // Start by showing the grey-out effect and loading spinner
+            showLoading();
+
+            try {
+                // Encrypt the secret using your encryption function
+                const encryptedSecret = await encryptSecret(secret.value, key.value);
+
+                // Create FormData and send it via XMLHttpRequest
+                const formData = new FormData();
+                formData.append('encryptedsecret', encryptedSecret);
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/lock', true);
+
+                xhr.onload = () => {
+                hideLoading(); // Remove loading overlay regardless of result
+                if (xhr.status === 200) {
+                    showSuccess(xhr.responseText);
+                } else if (xhr.status === 429) {
+                    showError(xhr.responseText);
+                } else {
+                    showError('Error creating a sharing link. The secret has been discarded.');
+                }
+                };
+
+                xhr.onerror = () => {
+                    hideLoading();
+                    showError('Error creating a sharing link. The secret has been discarded.');
+                };
+
+                xhr.send(formData);
+            } catch (err) {
+                hideLoading();
+                showError('Encryption error. Please try again.');
+                console.error('Encryption error:', err);
+            }
+        }
+
+        function showError(status) {
+            secretContainer.style.display = 'none';
+            statusWrapper.style.display = 'block';
+            errorMessage.innerHTML = `<div class="error-content fade-in"><p>${status}</p></div>`;
+
+        }
+
+        function showSuccess(data) {
+            const publicDownloadUrl = `${window.location.origin}${data}`;
+
+            successMessage.innerHTML = `
+                <div class="success-content">
+                    <h2>Your secret is safe!</h2>
+                    <p>Use this link to share it:</p>
+                    <span class="sharing-link"><a href="${publicDownloadUrl}" class="success-link">${publicDownloadUrl}</a></span>
+                    <span class="success-span-share">Click the icon to copy the link to the clipboard
+                        <button id="copy-landing-link-button" class="success-button" aria-label="Copy link to clipboard">
+                            <i data-feather="copy"></i>
+                        </button>
+                    </span>
+                    <p class="sharing-hint">Remember to share the encryption key too, but use a different channel.</p>
+                    <span class="link-back-span">[ <a href="/" class="success-link-back">Share another secret with CredShare.app</a> ]</span>
+                </div>
+            `;
+
+            feather.replace()
+            secretContainer.style.display = 'none';
+            statusWrapper.style.display = 'block';
+
+            updateQuotaInfo();
+
+            document.getElementById('copy-landing-link-button').addEventListener('click', () => {
+                copyToClipboard(publicDownloadUrl);
+            });
+
+            
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showLinkCopyNotification('Link copied to clipboard!');
+            }).catch(err => {
+                console.error('Error copying text: ', err);
+            });
+        }
+
+        function showLinkCopyNotification(message) {
+            linkCopyNotification.innerText = message;
+            linkCopyNotification.style.display = 'block';
+            setTimeout(() => {
+                linkCopyNotification.style.opacity = 0;
+                setTimeout(() => {
+                    linkCopyNotification.style.display = 'none';
+                    linkCopyNotification.style.opacity = 1;
+                }, 500);
+            }, 3000);
+        }
+
+        // Check limit status on page load
+        window.addEventListener('load', () => {
+            fetch('/check-limit')
+                .then(response => {
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.limit_reached) {
+                        showError('Your sharing limit has been reached.');
+                    }
+                    document.querySelector('.quota-info').innerText = `You have ${data.quota_left} password shares left on your quota.
+                        The quota will reset in ${data.quota_renewal_hours} hours and ${data.quota_renewal_minutes} minutes.`;
+                })
+                .catch(error => {
+                    console.error('Error checking limit:', error);
+                });
+        });
+
+        function preventDefault(e) {
+            e.preventDefault();
+        }
+
+        // Function to update quota information
+        function updateQuotaInfo() {
+            fetch('/check-limit')
+                .then(response => response.json())
+                .then(data => {
+                    document.querySelector('.quota-info').innerText = `You have ${data.quota_left} password shares left on your quota.
+                        The quota will reset in ${data.quota_renewal_hours} hours and ${data.quota_renewal_minutes} minutes.`;
+                })
+                .catch(error => {
+                    console.error('Error checking limit:', error);
+                });
+    }
+
+    </script>
+</body>
+</html>

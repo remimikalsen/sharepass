@@ -1,0 +1,24 @@
+{
+  "name": "sharepass",
+  "version": "1.0.0",
+  "description": "**CredShare.app is a simple and secure sharing service for password or other secrets.**",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build-highlight": "webpack",
+    "build-assets": "shx mkdir -p static/js/highlight static/css/highlight static/css/material-icons && shx cp node_modules/feather-icons/dist/feather.min.js static/js/feather.min.js && shx mkdir -p static/css/highlight && shx cp node_modules/highlight.js/styles/default.min.css static/css/highlight/default.min.css"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "feather-icons": "^4.29.2",
+    "highlight.js": "^11.11.1",
+    "prismjs": "^1.29.0"
+  },
+  "devDependencies": {
+    "shx": "^0.3.4",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^6.0.1"
+  }
+}
