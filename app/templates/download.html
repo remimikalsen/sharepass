@@ -21,7 +21,7 @@
       <input type="hidden" id="download_code" value="{{ download_code }}">
       <label for="key">
         Encryption key:
-        <input type="text" name="key" placeholder="Unlock me...">
+        <input id="key" type="text" name="key" placeholder="Unlock me...">
         <p id="download-key-error"></p>
       </label>
       <button id="unlock-button" onclick="unlockSecret()">Unlock!</button>

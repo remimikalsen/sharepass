@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CredShare.app - Secure password sharing</title>
+    <description>Share passwords and other secrets securely with CredShare.app. Your secrets are encrypted and can only be unlocked with the key you provide.</description>
+    <meta name="keywords" content="password, secret, sharing, encryption, secure, safe, link, key, CredShare, CredShare.app">
     <link rel="icon" href="/static/favicon.png" type="image/png">
     <link rel="stylesheet" href="/static/css/main.css">
     {{ analytics_script|safe }}
@@ -22,7 +24,7 @@
                 </label>
                 <label for="key">
                     The encryption key
-                    <input type="text" name="key" placeholder="How you unlock it..." >
+                    <input id="key" type="text" name="key" placeholder="How you unlock it..." >
                 </label>
                 <button id="upload-button" onclick="uploadSecret()">Share it!</button>
             </div>

@@ -91,4 +91,3 @@ Visit http://localhost:8080
 
 ## TODO
 Optimize and better re-use code - especially in the front-end
-WCAG + SEO improvements
