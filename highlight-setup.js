@@ -11,5 +11,5 @@ import yaml from 'highlight.js/lib/languages/yaml';
 hljs.registerLanguage('json', json);
 hljs.registerLanguage('yaml', yaml);
 
-// Expose hljs to the global window (so you can access it from your HTML)
+// Expose hljs to the global window 
 window.hljs = hljs;

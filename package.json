@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build-highlight": "webpack",
-    "build-assets": "shx mkdir -p static/js/highlight static/css/highlight static/css/material-icons && shx cp node_modules/feather-icons/dist/feather.min.js static/js/feather.min.js && shx mkdir -p static/css/highlight && shx cp node_modules/highlight.js/styles/default.min.css static/css/highlight/default.min.css"
+    "copy-assets": "shx mkdir -p app/static/js app/static/css && shx cp node_modules/feather-icons/dist/feather.min.js app/static/js/feather.min.js && shx cp node_modules/highlight.js/styles/default.min.css app/static/css/highlight.default.min.css"
   },
   "keywords": [],
   "author": "",

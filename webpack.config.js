@@ -5,7 +5,7 @@ module.exports = {
   entry: './highlight-setup.js', 
   output: {
     filename: 'highlight.bundle.min.js', 
-    path: path.resolve(__dirname, 'static/js/highlight'), 
+    path: path.resolve(__dirname, './app/static/js'), 
   },
   
 };

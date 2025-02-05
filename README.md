@@ -90,6 +90,5 @@ Visit http://localhost:8080
 
 
 ## TODO
-Make Plausible optional and configurable, instead of hardcoded
-Streamline and standardize inclusion of static assets (highlights with webpack and feather)
-Clean up code
+Optimize and better re-use code - especially in the front-end
+WCAG + SEO improvements

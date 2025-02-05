@@ -181,7 +181,7 @@ async def unlock_secret_landing(request):
         return aiohttp_jinja2.render_template('download.html', request, context, app_key=APP_KEY)
 
     conn.close()
-    return aiohttp_jinja2.render_template('404.html', request, {}, app_key=APP_KEY)
+    return aiohttp_jinja2.render_template('404.html', request, { 'analytics_script': ANALYTICS_SCRIPT }, app_key=APP_KEY)
 
 
 
