@@ -77,6 +77,7 @@ Change --env variables and your local paths in the docker command or in docker-c
 - `SECRET_EXPIRY_MINUTES`: Time in minutes after which a secret expires (default: 1440 minutes or 24 hours).
 - `QUOTA_RENEWAL_MINUTES`: Interval in minutes for resetting the usage quota (default: 60 minutes).
 - `PURGE_INTERVAL_MINUTES`: Interval in minutes for purging expired secrets and cleaning up the datbase (default: 5 minutes).
+- `ANALYTICS_SCRIPT`: The complete script tag needed for tracking from e.g. Plausible (default: '').
 
 These environment variables allow the app to be configured for different deployment scenarios and usage patterns.
 

@@ -22,6 +22,7 @@ SECRET_EXPIRY_MINUTES = int(os.getenv('SECRET_EXPIRY_MINUTES', 1440))  # Default
 QUOTA_RENEWAL_MINUTES = int(os.getenv('QUOTA_RENEWAL_MINUTES', 60))  # Default to 60 minutes (1 hour)
 PURGE_INTERVAL_MINUTES = int(os.getenv('PURGE_INTERVAL_MINUTES', 5))  # Default to purge every 5 minutes
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', 5))  # Defaults to 5 attemps
+ANALYTICS_SCRIPT = os.getenv('ANALYTICS_SCRIPT', '')
 
 DATABASE_DIR = '/app/database'
 DATABASE_PATH = os.path.join(DATABASE_DIR, 'secrets.db')
@@ -111,6 +112,7 @@ async def index(request):
         'secret_expiry_hours': secret_expiry_hours,
         'secret_expiry_minutes': secret_expiry_minutes,
         'max_attempts': MAX_ATTEMPTS,
+        'analytics_script': ANALYTICS_SCRIPT
     }
     return aiohttp_jinja2.render_template('index.html', request, context, app_key=APP_KEY)
 
@@ -170,6 +172,7 @@ async def unlock_secret_landing(request):
             'download_link': download_link,
             'download_code': download_code,
             'max_attempts': MAX_ATTEMPTS,
+            'analytics_script': ANALYTICS_SCRIPT
         }
        
         conn.commit()

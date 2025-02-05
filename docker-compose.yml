@@ -17,5 +17,6 @@ services:
       - PURGE_INTERVAL_MINUTES=5
       - INTERNAL_IP=127.0.0.1
       - INTERNAL_PORT=8080
+      - ANALYTICS_SCRIPT=<script defer data-domain="credshare.app" src="https://plausible.remim.com/js/script.js"></script>
     #volumes:
     #  - /snapfile/database:/app/database
