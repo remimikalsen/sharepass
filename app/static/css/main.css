@@ -221,8 +221,18 @@ textarea {
     display: block;
 }
 .success-content .sharing-link a {
-    word-break: break-word;
     font-size: 1.5rem;
+    display: inline-block;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;    
+}
+
+#status-wrapper,
+.success-content {
+    max-width: 100%;
+    box-sizing: border-box; 
 }
 
 .success-link {
