@@ -50,13 +50,13 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t snapfile:build .
+          docker build -t credshare:build .
 
       - name: Tag Docker image
         run: |
           echo "Tagging image with version $VERSION ..."
-          docker tag snapfile:build ghcr.io/remimikalsen/snapfile:${{ env.VERSION }}
-          docker tag snapfile:build ghcr.io/remimikalsen/snapfile:v${{ env.MAJOR }}
+          docker tag credshare:build ghcr.io/remimikalsen/credshare:${{ env.VERSION }}
+          docker tag credshare:build ghcr.io/remimikalsen/credshare:v${{ env.MAJOR }}
 
       - name: Login to GitHub Container Registry
         if: always()
@@ -65,12 +65,12 @@ jobs:
 
       - name: Push Docker image
         run: |
-          docker push ghcr.io/remimikalsen/snapfile:${{ env.VERSION }}
-          docker push ghcr.io/remimikalsen/snapfile:v${{ env.MAJOR }}
+          docker push ghcr.io/remimikalsen/credshare:${{ env.VERSION }}
+          docker push ghcr.io/remimikalsen/credshare:v${{ env.MAJOR }}
 
       - name: Trigger production update
         run: |
           curl -X POST \
             -H "Content-Type: application/json" \
             -d '{"version": "'${{ env.VERSION }}'"}' \
-            https://webhooks.theawesomegarage.com/update-snapfile
+            https://webhooks.theawesomegarage.com/update-credshare
