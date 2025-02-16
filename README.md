@@ -42,7 +42,7 @@ CredShare.app doesnt' by itself encrypt traffic, but it's easy enouth to put it 
 If you trust the build, just fetch the latest image and run it.
 
 ```
-docker pull ghcr.io/remimikalsen/sharepass:v1
+docker pull ghcr.io/remimikalsen/credshare:v1
 ```
 
 Configure it with the parameters as indicated in the advanced build. Or use the docker-compose.yml example in  the repository.
@@ -68,7 +68,7 @@ services:
   sharepass:
     ...
     container_name: sharepass
-    # image: ghcr.io/remimikalsen/sharepass:v1
+    # image: ghcr.io/remimikalsen/credshare:v1
     build: 
       context: .
       dockerfile: Dockerfile.sharepass
