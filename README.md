@@ -37,7 +37,20 @@ CredShare.app doesnt' by itself encrypt traffic, but it's easy enouth to put it 
 - Uploaded secrets have an expiry time after which they are deleted.
 - A scheduled task periodically purges expired secrets and cleans up the database.
 
-## Setup and configuration instructions
+## Setup and configuration instructions (simple)
+
+If you trust the build, just fetch the latest image and run it.
+
+```
+docker pull ghcr.io/remimikalsen/sharepass:v1
+```
+
+Configure it with the parameters as indicated in the advanced build. Or use the docker-compose.yml example in  the repository.
+
+
+## Setup and configuration instructions (advanced)
+
+If you instead want to build from source to be absolutely sure what's going on; do the following.
 
 ### Clone the repository
 
@@ -45,13 +58,31 @@ CredShare.app doesnt' by itself encrypt traffic, but it's easy enouth to put it 
 git clone https://github.com/remimikalsen/sharepass
 ```
 
-### Docker compose
+### Run Docker compose with build step to build from source
+
+Edit the docker-compose file so the build/image part looks like this:
+
+```
+services:
+
+  sharepass:
+    ...
+    container_name: sharepass
+    # image: ghcr.io/remimikalsen/sharepass:v1
+    build: 
+      context: .
+      dockerfile: Dockerfile.sharepass
+    ...
+```
+
+Then run the docker compose up command; which will build a fresh image from source.
+
 ```
 cd sharepass
 docker compose up -d
 ```
 
-### Docker only assure clean build
+### Run directly with Docker, and still build from source
 ```
 cd sharepass
 docker build -t sharepass-image -f Dockerfile.sharepass .
@@ -86,7 +117,6 @@ Make sure that the database directory exists on your computer to persist the dat
 ## Accessing the web interface
 
 Visit http://localhost:8080
-
 
 
 ## TODO
