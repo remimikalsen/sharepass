@@ -1,70 +1,98 @@
-# CredShare.app
+![Build Status](https://img.shields.io/github/actions/workflow/status/remimikalsen/sharepass/build.yaml)
+![License](https://img.shields.io/github/license/remimikalsen/sharepass)
+![Version](https://img.shields.io/github/tag/remimikalsen/sharepass)
 
-**CredShare.app is a simple and secure sharing service for password or other secrets.**
+# CredShare
 
-With CredShare.app, you can safely share passwords or other secrets over the internet. Enter the secret you want to share, plus a simple key for unlocking the secret. You will get a shareable, secure link back. The provided link is valid for a limited amount of time. You can share the link, or use it yourself, but once the secret is unlocked, it's deleted.
+**CredShare is a simple and secure sharing service for passwords or other secrets.**
 
-CredShare.app is anonymous, but still limits usage through hashing the client IP and storing it in the CredShare.app database. Quotas, quota renewal, locked secrets expiration and much more can be customized.
+CredShare allows you to share sensitive information safely over the internet. Enter your secret and a key to encrypt it in your browser, and you’ll receive a secure, shareable link. Once the secret is unlocked or expires, it’s automatically deleted.
 
-CredShare.app doesnt' by itself encrypt traffic, but it's easy enouth to put it behind a reverse proxy like Nginx or Traefik. CredShare.app will read the X-Forwarded-For headers to get the origining client's IP address.
+CredShare maintains anonymity while limiting usage by hashing client IP addresses. You can customize quotas, renewal intervals, secret expiry, and more.
 
+> **Note:** CredShare doesn’t encrypt network traffic on its own. For secure transmission, it is recommended to run it behind a reverse proxy (e.g., Nginx or Traefik) that terminates TLS. CredShare reads the `X-Forwarded-For` header to determine the originating client IP.
 
-## How does it work?
+## Table of Contents
 
-### Create the secret
+- [Features](#features)
+- [How it Works](#how-it-works)
+  - [Create the Secret](#create-the-secret)
+  - [Unlocking the Secret](#unlocking-the-secret)
+  - [Quota Management](#quota-management)
+  - [Secret Expiry and Purging](#secret-expiry-and-purging)
+- [Setup and Configuration](#setup-and-configuration)
+  - [Using a Pre-Built Image](#using-a-pre-built-image)
+  - [Building the Image Yourself](#building-the-image-yourself)
+    - [Clone the Repository](#clone-the-repository)
+    - [Using Docker Compose](#using-docker-compose)
+    - [Using Docker](#using-docker)
+- [Configuration Options](#configuration-options)
+- [Accessing the Web Interface](#accessing-the-web-interface)
+- [Developer Notes](#developer-notes)
 
-- The user enters the secret and the key for unlocking it.
-- The browser then encrypts the secret with the key, generates a unique download code, and stores the encrypted secret in a SQLite database.
-- The user receives a download link that can be used to enter the unlock code.
+## Features
 
-### Unlocking the secret
+- **Secure Secret Sharing:** Encrypt secrets in your browser before they are sent to the server.
+- **One-Time Access:** Secrets are deleted after being viewed or after a set expiry time.
+- **Usage Quotas:** Limits on uploads per IP address to prevent abuse.
+- **Configurable:** Adjustable settings for expiry, quota renewal, and purge intervals.
 
-- Users can unlock a secret using the provided download link.
-- The server verifies the download code, and asks for the unlocking key.
-- If the unlocking key matches the secret will be made available to the user.
-- The user can choose to copy the secret to the clipboard, or view it on screen.
-- The encrypted secret will be deleted from the server once unlocked
-- The encrypted secret will be deleted from the server after a configurable amount of unsuccessful unlocking attempts.
-- The download link is valid for a single use and also expires after a specified time.
+## How it Works
 
-### Quota management
+### Create the Secret
 
-- The app tracks the number of uploads per IP address to enforce a time based usage quota.
-- The quota is reset periodically based on the configured interval.
+1. The user enters the secret and the key for unlocking it.
+2. The browser encrypts the secret with the key, generates a unique download code, and stores the encrypted secret in a SQLite database.
+3. The user receives a download link that can be used to enter the unlock code.
 
-### Secret expiry and purging
+### Unlocking the Secret
+
+1. Users can unlock a secret using the provided download link.
+2. The server verifies the download code and prompts for the unlocking key.
+3. If the unlocking key matches, the secret is revealed.
+4. The user can choose to copy the secret to the clipboard or view it on screen.
+5. The encrypted secret is deleted from the server once unlocked.
+6. If the unlocking attempts exceed the limit, the encrypted secret is deleted.
+7. The download link is valid for a single use and also expires after a specified time.
+
+### Quota Management
+
+- The app tracks the number of uploads per IP address to enforce a time-based usage quota.
+- The quota resets periodically based on the configured interval.
+
+### Secret Expiry and Purging
 
 - Uploaded secrets have an expiry time after which they are deleted.
 - A scheduled task periodically purges expired secrets and cleans up the database.
 
-## Setup and configuration instructions (simple)
+## Setup and Configuration
 
-If you trust the build, just fetch the latest image and run it.
+### Using a Pre-Built Image
 
-```
+If you trust the pre-built images, fetch the latest image and run it:
+
+```sh
 docker pull ghcr.io/remimikalsen/credshare:v1
 ```
 
-Configure it with the parameters as indicated in the advanced build. Or use the docker-compose.yml example in  the repository.
+Configure it with the parameters indicated below, or use the `docker-compose.yml` example in the repository.
 
+### Building the Image Yourself
 
-## Setup and configuration instructions (advanced)
+If you prefer to build from source for security reasons, follow these steps:
 
-If you instead want to build from source to be absolutely sure what's going on; do the following.
+#### Clone the Repository
 
-### Clone the repository
-
-```
+```sh
 git clone https://github.com/remimikalsen/sharepass
 ```
 
-### Run Docker compose with build step to build from source
+#### Using Docker Compose
 
-Edit the docker-compose file so the build/image part looks like this:
+Modify the `docker-compose.yml` file so the build/image section looks like this:
 
-```
+```yaml
 services:
-
   sharepass:
     ...
     container_name: sharepass
@@ -75,15 +103,16 @@ services:
     ...
 ```
 
-Then run the docker compose up command; which will build a fresh image from source.
+Then build and run the image:
 
-```
+```sh
 cd sharepass
 docker compose up -d
 ```
 
-### Run directly with Docker, and still build from source
-```
+#### Using Docker
+
+```sh
 cd sharepass
 docker build -t sharepass-image -f Dockerfile.sharepass .
 docker run -d \
@@ -99,25 +128,60 @@ docker run -d \
   sharepass-image
 ```
 
+## Configuration Options
 
-### Configuration
-Change --env variables and your local paths in the docker command or in docker-compose.yml to reflect your setup.
+Modify `--env` variables or your `docker-compose.yml` file to match your setup:
 
-- `MAX_USES_QUOTA`: Maximum number of uploads allowed per IP address (default: 5).
-- `MAX_ATTEMPTS`: Maxium number of attempts at unlocking the secret (default: 5).
-- `SECRET_EXPIRY_MINUTES`: Time in minutes after which a secret expires (default: 1440 minutes or 24 hours).
-- `QUOTA_RENEWAL_MINUTES`: Interval in minutes for resetting the usage quota (default: 60 minutes).
-- `PURGE_INTERVAL_MINUTES`: Interval in minutes for purging expired secrets and cleaning up the datbase (default: 5 minutes).
-- `ANALYTICS_SCRIPT`: The complete script tag needed for tracking from e.g. Plausible (default: '').
+- `MAX_USES_QUOTA`: Maximum uploads allowed per IP address (default: 5).
+- `MAX_ATTEMPTS`: Maximum number of unlocking attempts (default: 5).
+- `SECRET_EXPIRY_MINUTES`: Time in minutes before a secret expires (default: 1440 minutes or 24 hours).
+- `QUOTA_RENEWAL_MINUTES`: Interval for resetting the usage quota (default: 60 minutes).
+- `PURGE_INTERVAL_MINUTES`: Interval for purging expired secrets (default: 5 minutes).
+- `ANALYTICS_SCRIPT`: Complete script tag needed for tracking (default: '').
 
-These environment variables allow the app to be configured for different deployment scenarios and usage patterns.
+Ensure that the database directory exists on your system to persist the database.
 
-Make sure that the database directory exists on your computer to persist the database.
+## Accessing the Web Interface
 
-## Accessing the web interface
+Visit [http://localhost:8080](http://localhost:8080).
 
-Visit http://localhost:8080
+## Developer Notes
 
+### Python dependencies
 
-## TODO
-Optimize and better re-use code - especially in the front-end
+Set up a Python virtual environment for local development to manage Python package versions correctly:
+
+- `pip-tools` is used to compile canonical requirements in `requirements.in`.
+- `requirements.txt` is generated using:
+
+  ```sh
+  pip-compile requirements.in
+  ```
+
+- To upgrade `requirements.txt`, run:
+
+  ```sh
+  pip-compile --upgrade requirements.in
+  pip install -r requirements.txt
+  pip-sync requirements.txt
+  
+
+### Javascript dependencies
+
+Npm is used to manage packages and webpack to bundle a minimal hightlight package.
+
+To upgrade npm packages (although, the latest versions are automatically installed on each docker build):
+
+Safe updates: 
+
+```sh
+npm update
+```
+
+Update including across major versjons (breaking):
+
+```
+npm outdated && npx npm-check-updates -u && npm install
+```
+
+NOTE! The the version in package.json will follow the version in the "VERSION" file. This happens in the github actions build step.

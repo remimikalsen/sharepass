@@ -1,23 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CredShare.app - Unlock the secret</title>
-  <meta name="title" property="og:title" content="CredShare.app">
-  <meta name="image" property="og:image" content="/static/favicon.png">
-  <meta name="author" content="Remi Mikalsen">
-  <meta name="description" property="og:description" content="Share passwords and other secrets securely with CredShare.app. Your secrets are encrypted and can only be unlocked with the key you provide.">
-  <link rel="stylesheet" href="/static/css/main.css">
-  <link rel="stylesheet" href="/static/css/highlight.default.min.css">
-  {{ analytics_script|safe }}
-</head>
-<body>
-  <header>
-    <a href="/" class="logo-link"><h1>CredShare.app</h1></a>
-  </header>
-  <main>
-    <div id="unlock-area-container">
+{% extends "base.html" %}
+
+{% block title %}Unlock the secret | CredShare.app{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="/static/css/highlight.default.min.css">
+{% endblock %}
+
+{% block content %}
+  <div id="unlock-area-container">
     <h2>Unlock the secret</h2>
     <div id="unlock-area">
       <h3>Enter your encryption key</h3>
@@ -31,37 +21,33 @@
       <button id="unlock-button" onclick="unlockSecret()">Unlock!</button>
       <p id="time-left"></p>
     </div>
+  </div>
+  
+  <div id="secret-unlocked-container" style="display:none;">
+    <h2>Secret unlocked!</h2>
+    <div id="secret-display">
+      <button id="toggle-visibility" aria-label="Toggle secret visibility">
+        <i id="visibility-icon" data-feather="eye"></i>
+      </button>
+      <button id="copy-secret" aria-label="Copy secret to clipboard">
+        <i data-feather="copy"></i>
+      </button>
+      <pre><code id="secret-code"></code></pre>
+      <p class="sharing-hint">
+        Click the eye icon to toggle visibility, or if you prefer, just copy the secret to your clipboard without displaying it. If you close or refresh the page, the secret is gone!
+      </p>
     </div>
-    
-    <div id="secret-unlocked-container" style="display:none;">
-        <h2>Secret unlocked!</h2>
-        <div id="secret-display">
-          <button id="toggle-visibility" aria-label="Toggle secret visibility">
-            <i id="visibility-icon" data-feather="eye"></i>
-          </button>
-          <button id="copy-secret" aria-label="Copy secret to clipboard">
-            <i data-feather="copy"></i>
-          </button>
-          <!-- Preformatted code block for the secret -->
-          <pre><code id="secret-code"></code></pre>
-          <p class="sharing-hint">Click the eye icon to toggle visibility, or if you prefer, just copy the secret to your clipboard without displaying it. If you close or refresh the page, the secret is gone!</p>
-        </div>
-      </div>
-
-    <div class="to-home">
-      <span class="link-back-span">[ <a href="/" class="success-link-back">Share a secret with CredShare.app</a> ]</span>
-    </div>
-  </main>
-  <footer>
-    <p>
-      Brought to you by <a href="https://theawesomegarage.com" target="_blank">TheAwesomeGarage.com</a>
-    </p>
-    <p>
-      View the source code on <a href="https://github.com/remimikalsen/sharepass" target="_blank">GitHub.com</a>
-    </p>
-  </footer>
+  </div>
+  
+  <div class="to-home">
+    <span class="link-back-span">[ <a href="/" class="success-link-back">Share a secret with CredShare.app</a> ]</span>
+  </div>
+  
+  <!-- Notification element for link copying -->
   <div id="link-copy-notification" style="display: none;"></div>
+{% endblock %}
 
+{% block extra_scripts %}
   <script src="/static/js/highlight.bundle.min.js"></script>
   <script src="/static/js/feather.min.js"></script>
   <script>
@@ -72,7 +58,7 @@
     async function unlockSecret() {
       const keyInput = document.querySelector('input[name="key"]');
       const key = keyInput.value.trim();
-      const downloadCode = document.getElementById('download_code').value; // embedded value
+      const downloadCode = document.getElementById('download_code').value;
       const unlockAreaContainer = document.getElementById('unlock-area-container');
       const unlockedMessageContainer = document.getElementById('secret-unlocked-container');
       const errorMessage = document.getElementById('download-key-error');
@@ -119,17 +105,17 @@
             copyToClipboard(result.secret);
           });
 
-            document.getElementById('toggle-visibility').addEventListener('click', function() {
-                const codeContainer = document.getElementById('secret-code');
-                const icon = document.getElementById('visibility-icon');
-                if (codeContainer.classList.contains('visible')) {
-                  icon.setAttribute('data-feather', 'eye-off');
-                } else {
-                  icon.setAttribute('data-feather', 'eye');
-                }
-                feather.replace();
-                codeContainer.classList.toggle('visible');
-            });                    
+          document.getElementById('toggle-visibility').addEventListener('click', function() {
+            const codeContainer = document.getElementById('secret-code');
+            const icon = document.getElementById('visibility-icon');
+            if (codeContainer.classList.contains('visible')) {
+              icon.setAttribute('data-feather', 'eye-off');
+            } else {
+              icon.setAttribute('data-feather', 'eye');
+            }
+            feather.replace();
+            codeContainer.classList.toggle('visible');
+          });
           
         } else {
           // Decryption failed.
@@ -153,54 +139,48 @@
         });
     }
     
-
     function showLinkCopyNotification(message) {
-            linkCopyNotification.innerText = message;
-            linkCopyNotification.style.display = 'block';
-            setTimeout(() => {
-                linkCopyNotification.style.opacity = 0;
-                setTimeout(() => {
-                    linkCopyNotification.style.display = 'none';
-                    linkCopyNotification.style.opacity = 1;
-                }, 500);
-            }, 3000);
-        }
+      linkCopyNotification.innerText = message;
+      linkCopyNotification.style.display = 'block';
+      setTimeout(() => {
+          linkCopyNotification.style.opacity = 0;
+          setTimeout(() => {
+              linkCopyNotification.style.display = 'none';
+              linkCopyNotification.style.opacity = 1;
+          }, 500);
+      }, 3000);
+    }
 
-
-      async function fetchTimeLeft() {
-        try {
-          const response = await fetch(`/time-left/{{ download_code }}`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.hours_left !== undefined && data.minutes_left !== undefined) {
-              document.getElementById('time-left').innerHTML = 
-                `Time left to unlock: ${data.hours_left} hours and ${data.minutes_left} minutes.<br />Once unlocked, the secret is immediately deleted.`;
-            } else {
-              document.getElementById('time-left').innerText = data.message;
-            }
-          } else if (response.status === 404) {
-            document.getElementById('time-left').innerText = 'The secret has expired or never existed.';
-            // Cancel further fetches if secret is not found
-            clearInterval(timerId);
+    async function fetchTimeLeft() {
+      try {
+        const response = await fetch(`/time-left/{{ download_code }}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.hours_left !== undefined && data.minutes_left !== undefined) {
+            document.getElementById('time-left').innerHTML = 
+              `Time left to unlock: ${data.hours_left} hours and ${data.minutes_left} minutes.<br />Once unlocked, the secret is immediately deleted.`;
           } else {
-            document.getElementById('time-left').innerText = 'Error fetching time left.';
-            // Cancel further fetches on any error status
-            clearInterval(timerId);
+            document.getElementById('time-left').innerText = data.message;
           }
-        } catch (error) {
+        } else if (response.status === 404) {
+          document.getElementById('time-left').innerText = 'The secret has expired or never existed.';
+          clearInterval(timerId);
+        } else {
           document.getElementById('time-left').innerText = 'Error fetching time left.';
-          console.error('Error fetching time left:', error);
-          // Cancel further fetches if an exception occurs
           clearInterval(timerId);
         }
+      } catch (error) {
+        document.getElementById('time-left').innerText = 'Error fetching time left.';
+        console.error('Error fetching time left:', error);
+        clearInterval(timerId);
       }
-      
-      function startTimer() {
-        fetchTimeLeft(); // Initial fetch
-        timerId = setInterval(fetchTimeLeft, 60000); // Update every minute
-      }
+    }
+    
+    function startTimer() {
+      fetchTimeLeft();
+      timerId = setInterval(fetchTimeLeft, 60000);
+    }
     
     window.onload = startTimer;
   </script>
-</body>
-</html>
+{% endblock %}

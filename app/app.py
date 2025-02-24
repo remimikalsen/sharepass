@@ -16,6 +16,21 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+
+VERSION_FILE_PATH = os.path.join(os.path.dirname(__file__), 'VERSION')
+VERSION = "unknown"
+
+if os.path.isfile(VERSION_FILE_PATH):
+    with open(VERSION_FILE_PATH, 'r') as version_file:
+        VERSION = version_file.read().strip() or "unknown"
+else:
+    parent_dir_version_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'VERSION')
+    if os.path.isfile(parent_dir_version_path):
+        with open(parent_dir_version_path, 'r') as version_file:
+            VERSION = version_file.read().strip() + "-development"
+    else:
+        VERSION = "unknown"
+
 # Load configuration from environment variables
 MAX_USES_QUOTA = int(os.getenv('MAX_USES_QUOTA', 5))  # Default to 5 uses per day
 SECRET_EXPIRY_MINUTES = int(os.getenv('SECRET_EXPIRY_MINUTES', 1440))  # Default to 1440 minutes (24 hours)
@@ -53,12 +68,13 @@ c.execute('''CREATE TABLE IF NOT EXISTS ip_usage
              (ip TEXT, uses INTEGER, last_access DATETIME)''')
 conn.commit()
 
-# Configure Jinja2 templating
-aiohttp_jinja2.setup(
-    app=web.Application(),
-    loader=jinja2.FileSystemLoader('./templates'),
-    app_key=APP_KEY
-)
+
+# Define a context processor to add VERSION and ANALYTICS_SCRIPT to all templates
+async def version_context_processor(_):
+    return {
+        'VERSION': VERSION, 
+        'ANALYTICS_SCRIPT': ANALYTICS_SCRIPT
+    }
 
 
 def hash_ip(ip):
@@ -111,8 +127,7 @@ async def index(request):
     context = {
         'secret_expiry_hours': secret_expiry_hours,
         'secret_expiry_minutes': secret_expiry_minutes,
-        'max_attempts': MAX_ATTEMPTS,
-        'analytics_script': ANALYTICS_SCRIPT
+        'max_attempts': MAX_ATTEMPTS
     }
     return aiohttp_jinja2.render_template('index.html', request, context, app_key=APP_KEY)
 
@@ -171,8 +186,7 @@ async def unlock_secret_landing(request):
         context = {
             'download_link': download_link,
             'download_code': download_code,
-            'max_attempts': MAX_ATTEMPTS,
-            'analytics_script': ANALYTICS_SCRIPT
+            'max_attempts': MAX_ATTEMPTS
         }
        
         conn.commit()
@@ -181,7 +195,11 @@ async def unlock_secret_landing(request):
         return aiohttp_jinja2.render_template('download.html', request, context, app_key=APP_KEY)
 
     conn.close()
-    return aiohttp_jinja2.render_template('404.html', request, { 'analytics_script': ANALYTICS_SCRIPT }, app_key=APP_KEY)
+
+    # Code not found 
+    response = aiohttp_jinja2.render_template('404.html', request, {}, app_key=APP_KEY)
+    response.set_status(404)
+    return response
 
 
 
@@ -260,7 +278,9 @@ async def unlock_secret(request):
 
 
 async def handle_404(request):
-    return aiohttp_jinja2.render_template('404.html', request, {}, app_key=APP_KEY)
+    response = aiohttp_jinja2.render_template('404.html', request, {}, app_key=APP_KEY)
+    response.set_status(404)
+    return response
 
 async def check_limit(request):
     ip = get_client_ip(request)
@@ -350,14 +370,15 @@ def purge_expired():
     conn.close()
 
 
-def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
+async def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
     app = web.Application()
     
     # Setup Jinja2 with the application key
     aiohttp_jinja2.setup(
         app,
         loader=jinja2.FileSystemLoader('./templates'),
-        app_key=APP_KEY
+        app_key=APP_KEY,
+        context_processors=[version_context_processor]
     )
     
     # Define routes in the correct order
