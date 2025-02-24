@@ -3,10 +3,10 @@ services:
   sharepass:
     restart: unless-stopped
     container_name: sharepass
-    image: ghcr.io/remimikalsen/credshare:v1
-    #build: 
-    #  context: .
-    #  dockerfile: Dockerfile.sharepass
+    #image: ghcr.io/remimikalsen/credshare:v1
+    build: 
+      context: .
+      dockerfile: Dockerfile.sharepass
     ports:
       - "8081:8080"
     environment:

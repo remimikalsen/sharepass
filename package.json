@@ -1,8 +1,4 @@
 {
-  "name": "sharepass",
-  "version": "1.0.0",
-  "description": "**CredShare.app is a simple and secure sharing service for password or other secrets.**",
-  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build-highlight": "webpack",
