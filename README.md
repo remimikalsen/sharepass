@@ -162,9 +162,9 @@ Set up a Python virtual environment for local development to manage Python packa
 
   ```sh
   pip-compile --upgrade requirements.in
-  pip install -r requirements.txt
+  pip install -r requirements.txt  
   pip-sync requirements.txt
-  
+  ```
 
 ### Javascript dependencies
 
