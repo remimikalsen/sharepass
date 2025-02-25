@@ -1,25 +1,27 @@
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from aiohttp import web
-from datetime import datetime, timedelta
 import os
-import sqlite3
 import uuid
 import random
 import string
-import aiohttp_jinja2
-import jinja2
 import hashlib
 import json
 import base64
+from datetime import datetime, timedelta
+
+from aiohttp import web
+import aiohttp_jinja2
+import jinja2
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import sqlite3
+import aiosqlite
+
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-
+# Determine VERSION from file
 VERSION_FILE_PATH = os.path.join(os.path.dirname(__file__), 'VERSION')
 VERSION = "unknown"
-
 if os.path.isfile(VERSION_FILE_PATH):
     with open(VERSION_FILE_PATH, 'r') as version_file:
         VERSION = version_file.read().strip() or "unknown"
@@ -32,20 +34,25 @@ else:
         VERSION = "unknown"
 
 # Load configuration from environment variables
-MAX_USES_QUOTA = int(os.getenv('MAX_USES_QUOTA', 5))  # Default to 5 uses per day
-SECRET_EXPIRY_MINUTES = int(os.getenv('SECRET_EXPIRY_MINUTES', 1440))  # Default to 1440 minutes (24 hours)
-QUOTA_RENEWAL_MINUTES = int(os.getenv('QUOTA_RENEWAL_MINUTES', 60))  # Default to 60 minutes (1 hour)
-PURGE_INTERVAL_MINUTES = int(os.getenv('PURGE_INTERVAL_MINUTES', 5))  # Default to purge every 5 minutes
-MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', 5))  # Defaults to 5 attemps
+MAX_USES_QUOTA = int(os.getenv('MAX_USES_QUOTA', 50))
+SECRET_EXPIRY_MINUTES = int(os.getenv('SECRET_EXPIRY_MINUTES', 1440))
+QUOTA_RENEWAL_MINUTES = int(os.getenv('QUOTA_RENEWAL_MINUTES', 60))
+PURGE_INTERVAL_MINUTES = int(os.getenv('PURGE_INTERVAL_MINUTES', 5))
+MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', 5))
 ANALYTICS_SCRIPT = os.getenv('ANALYTICS_SCRIPT', '')
+
+# Constants to avoid abuse
+MAX_CLIENT_SIZE = 1024 * 768  # 0.75MB
+MAX_SECRET_SIZE = 1024 * 512  # 0.5MB
 
 DATABASE_DIR = '/app/database'
 DATABASE_PATH = os.path.join(DATABASE_DIR, 'secrets.db')
 APP_KEY = 'aiohttp_jinja2_environment'
 
-# Ensure the database directory exist
+# Ensure the database directory exists
 os.makedirs(DATABASE_DIR, exist_ok=True)
 
+# --- Date Adapter and Converter (kept as in your example) ---
 
 def adapt_datetime_iso(val):
     """Adapt datetime.datetime to timezone-naive ISO 8601 date."""
@@ -57,70 +64,71 @@ def convert_datetime(val):
     return datetime.fromisoformat(val.decode())
 sqlite3.register_converter("DATETIME", convert_datetime)
 
-
-
-# Initialize the database
-conn = sqlite3.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
-c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS secrets
-             (id TEXT PRIMARY KEY, secret TEXT, attempts INTEGER, download_code TEXT, upload_time DATETIME)''')
-c.execute('''CREATE TABLE IF NOT EXISTS ip_usage
-             (ip TEXT, uses INTEGER, last_access DATETIME)''')
-conn.commit()
-
-
-# Define a context processor to add VERSION and ANALYTICS_SCRIPT to all templates
+# --- Context Processor for Templates ---
 async def version_context_processor(_):
     return {
-        'VERSION': VERSION, 
+        'VERSION': VERSION,
         'ANALYTICS_SCRIPT': ANALYTICS_SCRIPT
     }
 
+# --- Helper Functions ---
+
+async def init_db():
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS secrets (
+                id TEXT PRIMARY KEY,
+                secret TEXT NOT NULL,
+                attempts INTEGER NOT NULL,
+                download_code TEXT NOT NULL,
+                upload_time DATETIME NOT NULL
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS ip_usage (
+                ip TEXT PRIMARY KEY,
+                uses INTEGER NOT NULL,
+                last_access DATETIME NOT NULL
+            )
+        """)
+        await db.commit()
 
 def hash_ip(ip):
     return hashlib.sha256(ip.encode()).hexdigest()
 
 def get_client_ip(request):
-    """Retrieve the client's IP address from the request."""
+    """Retrieve the client's IP address from the request and hash it."""
     forwarded_for = request.headers.get('X-Forwarded-For')
     if forwarded_for:
-        # The X-Forwarded-For header can contain multiple IPs, the first one is the client's original IP
         ip = forwarded_for.split(',')[0].strip()
     else:
         ip = request.remote
     return hash_ip(ip)
 
-def ip_reached_quota(ip):
-    """Check the IP usage and delete the record if it has expired."""
-    conn = sqlite3.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
-    c = conn.cursor()
-    c.execute("SELECT uses, last_access FROM ip_usage WHERE ip=?", (ip,))
-    result = c.fetchone()
-    current_time = datetime.now()
-
-    if result:
-        uses, last_access = result
-
-        if last_access < (current_time - timedelta(minutes=QUOTA_RENEWAL_MINUTES)):
-            # Reset the usage count for a new day
-            c.execute("DELETE FROM ip_usage WHERE ip=?", (ip,))
-            conn.commit()
-            conn.close()
-            return False
-        elif int(uses) >= MAX_USES_QUOTA:
-            conn.close()
-            return True
-
-    conn.close()
+async def ip_reached_quota(ip):
+    """Check the IP usage and reset if the quota renewal period has passed."""
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        async with db.execute("SELECT uses, last_access FROM ip_usage WHERE ip=?", (ip,)) as cursor:
+            row = await cursor.fetchone()
+        current_time = datetime.now()
+        if row:
+            uses, last_access = row
+            if last_access < (current_time - timedelta(minutes=QUOTA_RENEWAL_MINUTES)):
+                await db.execute("DELETE FROM ip_usage WHERE ip=?", (ip,))
+                await db.commit()
+                return False
+            elif int(uses) >= MAX_USES_QUOTA:
+                return True
     return False
-    
+
 def generate_download_code(length=12):
     """Generate a random download code."""
     characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for i in range(length))
+    return ''.join(random.choice(characters) for _ in range(length))
+
+# --- Request Handlers ---
 
 async def index(request):
-    ip = get_client_ip(request)
     secret_expiry_hours = SECRET_EXPIRY_MINUTES // 60
     secret_expiry_minutes = SECRET_EXPIRY_MINUTES % 60
 
@@ -131,86 +139,65 @@ async def index(request):
     }
     return aiohttp_jinja2.render_template('index.html', request, context, app_key=APP_KEY)
 
-
 async def upload_secret(request):
     ip = get_client_ip(request)
-    if ip_reached_quota(ip):
+    if await ip_reached_quota(ip):
         return web.Response(text="You have exceeded the maximum number of shares for today.", status=429)
 
     reader = await request.multipart()
-
     field = await reader.next()
-
-    if field.name != 'encryptedsecret':
+    if field is None or field.name != 'encryptedsecret':
         return web.Response(text="No secret field in form.", status=400)
 
     secret = await field.text()
 
-    # Generate a unique secret ID and create the path
+    if len(secret) > MAX_SECRET_SIZE:
+        return web.Response(text=f"Secret too large. Maximum size is {MAX_SECRET_SIZE} bytes.", status=400)
+    
     secret_id = str(uuid.uuid4())
     download_code = generate_download_code()
-
-    # Store the secret info in the database
-    conn = sqlite3.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
-    c = conn.cursor()
     upload_time = datetime.now()
-    c.execute("INSERT INTO secrets (id, secret, attempts, download_code, upload_time) VALUES (?, ?, ?, ?, ?)", (secret_id, secret, 0, download_code, upload_time))
 
-    # Incrment the usage count for the IP
-    c.execute("SELECT 1 FROM ip_usage WHERE ip=?", (ip,))
-    result = c.fetchone()
-    if result:
-        c.execute("UPDATE ip_usage SET uses=uses+1, last_access=? WHERE ip=?", (upload_time, ip))
-    else:
-        c.execute("INSERT INTO ip_usage (ip, uses, last_access) VALUES (?, 1, ?)", (ip, upload_time))
-    
-    conn.commit()
-    conn.close()
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        await db.execute(
+            "INSERT INTO secrets (id, secret, attempts, download_code, upload_time) VALUES (?, ?, ?, ?, ?)",
+            (secret_id, secret, 0, download_code, upload_time)
+        )
+        async with db.execute("SELECT 1 FROM ip_usage WHERE ip=?", (ip,)) as cursor:
+            exists = await cursor.fetchone()
+        if exists:
+            await db.execute("UPDATE ip_usage SET uses=uses+1, last_access=? WHERE ip=?", (upload_time, ip))
+        else:
+            await db.execute("INSERT INTO ip_usage (ip, uses, last_access) VALUES (?, 1, ?)", (ip, upload_time))
+        await db.commit()
 
-    # Generate the download link
     download_url = f"/unlock/{download_code}"
-
     return web.Response(text=download_url)
 
 async def unlock_secret_landing(request):
     download_code = request.match_info['download_code']
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        async with db.execute("SELECT secret FROM secrets WHERE download_code=?", (download_code,)) as cursor:
+            row = await cursor.fetchone()
 
-    # Retrieve the secret info from the database
-    conn = sqlite3.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
-    c = conn.cursor()
-    c.execute("SELECT secret FROM secrets WHERE download_code=?", (download_code,))
-    result = c.fetchone()
-    if result:
-        secret = result[0]
+    if row:
         download_link = f"/unlock/{download_code}"
         context = {
             'download_link': download_link,
             'download_code': download_code,
             'max_attempts': MAX_ATTEMPTS
         }
-       
-        conn.commit()
-
-        conn.close()
         return aiohttp_jinja2.render_template('download.html', request, context, app_key=APP_KEY)
 
-    conn.close()
-
-    # Code not found 
     response = aiohttp_jinja2.render_template('404.html', request, {}, app_key=APP_KEY)
     response.set_status(404)
     return response
 
-
-
 async def unlock_secret(request):
     """
     Expects JSON data with:
-      - "download_code": the secret identifier (from the URL or embedded in the page)
+      - "download_code": the secret identifier.
       - "key": the user-supplied decryption key.
-    
-    Attempts to decrypt the secret stored in the DB. On failure, increments the
-    attempts counter and deletes the secret after 3 failed tries.
     """
     try:
         data = await request.json()
@@ -219,63 +206,47 @@ async def unlock_secret(request):
 
     download_code = data.get("download_code")
     key = data.get("key")
-    
+
     if not download_code or not key:
         return web.json_response({"error": "Missing download_code or key."}, status=400)
 
-    # Retrieve the encrypted secret and current attempt count from the database.
-    conn = sqlite3.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
-    c = conn.cursor()
-    c.execute("SELECT secret, attempts FROM secrets WHERE download_code=?", (download_code,))
-    row = c.fetchone()
-    if not row:
-        conn.close()
-        return web.json_response({"error": "Secret not found or already unlocked."}, status=404)
-    
-    encrypted_secret_json, attempts = row
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        async with db.execute("SELECT secret, attempts FROM secrets WHERE download_code=?", (download_code,)) as cursor:
+            row = await cursor.fetchone()
+        if not row:
+            return web.json_response({"error": "Secret not found or already unlocked."}, status=404)
+        encrypted_secret_json, attempts = row
 
-    try:
-        # Parse the JSON string stored in the DB.
-        encrypted_data = json.loads(encrypted_secret_json)
-        salt = base64.b64decode(encrypted_data['salt'])
-        iv = base64.b64decode(encrypted_data['iv'])
-        ciphertext = base64.b64decode(encrypted_data['ciphertext'])
-        
-        # Derive the AES-GCM key using PBKDF2 with the same parameters as in the client.
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,             # 256-bit key
-            salt=salt,
-            iterations=100000,     # same iteration count used on the client
-            backend=default_backend()
-        )
-        aes_key = kdf.derive(key.encode())  # key derived from the provided password
-        
-        # Decrypt using AESGCM. Note: the additional authenticated data (AAD) is None.
-        aesgcm = AESGCM(aes_key)
-        decrypted_bytes = aesgcm.decrypt(iv, ciphertext, None)
-        decrypted_secret = decrypted_bytes.decode()
-    except Exception as e:
-        # Decryption failed (likely a wrong key). Increment the attempt counter.
-        attempts += 1
-        if attempts >= MAX_ATTEMPTS:
-            # Delete the secret after MAX_ATTEMPTS failed attempts.
-            c.execute("DELETE FROM secrets WHERE download_code=?", (download_code,))
-        else:
-            c.execute("UPDATE secrets SET attempts=? WHERE download_code=?", (attempts, download_code))
-        conn.commit()
-        conn.close()
-        return web.json_response({"error": "Incorrect key."}, status=400)
-    
-    # Decryption succeeded, so delete the secret record.
-    c.execute("DELETE FROM secrets WHERE download_code=?", (download_code,))
-    conn.commit()
-    conn.close()
+        try:
+            encrypted_data = json.loads(encrypted_secret_json)
+            salt = base64.b64decode(encrypted_data['salt'])
+            iv = base64.b64decode(encrypted_data['iv'])
+            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
 
-    # Return the decrypted secret.
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,  # 256-bit key
+                salt=salt,
+                iterations=100000,
+                backend=default_backend()
+            )
+            aes_key = kdf.derive(key.encode())
+            aesgcm = AESGCM(aes_key)
+            decrypted_bytes = aesgcm.decrypt(iv, ciphertext, None)
+            decrypted_secret = decrypted_bytes.decode()
+        except Exception:
+            attempts += 1
+            if attempts >= MAX_ATTEMPTS:
+                await db.execute("DELETE FROM secrets WHERE download_code=?", (download_code,))
+            else:
+                await db.execute("UPDATE secrets SET attempts=? WHERE download_code=?", (attempts, download_code))
+            await db.commit()
+            return web.json_response({"error": "Incorrect key."}, status=400)
+
+        await db.execute("DELETE FROM secrets WHERE download_code=?", (download_code,))
+        await db.commit()
+
     return web.json_response({"secret": decrypted_secret})
-
-
 
 async def handle_404(request):
     response = aiohttp_jinja2.render_template('404.html', request, {}, app_key=APP_KEY)
@@ -284,104 +255,83 @@ async def handle_404(request):
 
 async def check_limit(request):
     ip = get_client_ip(request)
-
-    ip_reached_quota(ip) # To delete expired records
-
+    # Clean up expired records if needed.
+    await ip_reached_quota(ip)
     quota_left = MAX_USES_QUOTA
     current_time = datetime.now()
-    next_quota_renewal = (current_time + timedelta(minutes=QUOTA_RENEWAL_MINUTES)) - current_time
-    
-    conn = sqlite3.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
-    c = conn.cursor()
-    c.execute("SELECT uses, last_access FROM ip_usage WHERE ip=?", (ip,))
-    result = c.fetchone()
+    next_quota_renewal = timedelta(minutes=QUOTA_RENEWAL_MINUTES)
 
-    if result:
-        uses, last_access = result
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        async with db.execute("SELECT uses, last_access FROM ip_usage WHERE ip=?", (ip,)) as cursor:
+            row = await cursor.fetchone()
+        if row:
+            uses, last_access = row
+            if last_access >= (current_time - timedelta(minutes=QUOTA_RENEWAL_MINUTES)):
+                quota_left = MAX_USES_QUOTA - uses
+                next_quota_renewal = (last_access + timedelta(minutes=QUOTA_RENEWAL_MINUTES)) - current_time
 
-        if last_access >= (current_time - timedelta(minutes=QUOTA_RENEWAL_MINUTES)):
-            quota_left = MAX_USES_QUOTA - uses
-            next_quota_renewal = last_access + timedelta(minutes=QUOTA_RENEWAL_MINUTES) - current_time
-
-    conn.close()
-
-    quota_renewal_hours = int(next_quota_renewal.total_seconds() // 3600)
-    quota_renewal_minutes = int((next_quota_renewal.total_seconds() % 3600) // 60)
-
-    if ip_reached_quota(ip):
-        return web.json_response({"limit_reached": True,
-                                  "quota_left": quota_left,
-                                  "quota_renewal_hours": quota_renewal_hours,
-                                  "quota_renewal_minutes": quota_renewal_minutes})
+    if await ip_reached_quota(ip):
+        return web.json_response({
+            "limit_reached": True,
+            "quota_left": quota_left,
+            "quota_renewal_hours": int(next_quota_renewal.total_seconds() // 3600),
+            "quota_renewal_minutes": int((next_quota_renewal.total_seconds() % 3600) // 60)
+        })
     else:
-        return web.json_response({"limit_reached": False,
-                                  "quota_left": quota_left,
-                                  "quota_renewal_hours": quota_renewal_hours,
-                                  "quota_renewal_minutes": quota_renewal_minutes})
+        return web.json_response({
+            "limit_reached": False,
+            "quota_left": quota_left,
+            "quota_renewal_hours": int(next_quota_renewal.total_seconds() // 3600),
+            "quota_renewal_minutes": int((next_quota_renewal.total_seconds() % 3600) // 60)
+        })
 
 async def time_left(request):
     download_code = request.match_info['download_code']
-
-    # Retrieve the secret info from the database
-    conn = sqlite3.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
-    c = conn.cursor()
-    c.execute("SELECT upload_time FROM secrets WHERE download_code=?", (download_code,))
-    result = c.fetchone()
-    conn.close()
-
-    if result:
-        upload_time = result[0]
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        async with db.execute("SELECT upload_time FROM secrets WHERE download_code=?", (download_code,)) as cursor:
+            row = await cursor.fetchone()
+    if row:
+        upload_time = row[0]
         expiry_time = upload_time + timedelta(minutes=SECRET_EXPIRY_MINUTES)
         current_time = datetime.now()
-        time_left = expiry_time - current_time
-
-        if time_left.total_seconds() > 0:
-            hours_left = int(time_left.total_seconds() // 3600)
-            minutes_left = int((time_left.total_seconds() % 3600) // 60)
+        remaining = expiry_time - current_time
+        if remaining.total_seconds() > 0:
+            hours_left = int(remaining.total_seconds() // 3600)
+            minutes_left = int((remaining.total_seconds() % 3600) // 60)
             return web.json_response({
                 "hours_left": hours_left,
                 "minutes_left": minutes_left,
                 "message": "The secret is available"
             })
         else:
-            return web.json_response({
-                "message": "The secret has already expired."
-            }, status=410)
+            return web.json_response({"message": "The secret has already expired."}, status=410)
     else:
-        return web.json_response({
-            "message": "Download code not found."
-        }, status=404)
+        return web.json_response({"message": "Download code not found."}, status=404)
 
-def purge_expired():
-    """Delete secrets older than the configured expiry time and clean up the ip_usage database."""
+async def purge_expired():
+    """Delete secrets older than the expiry time and clean up the ip_usage table."""
     expiry_time = datetime.now() - timedelta(minutes=SECRET_EXPIRY_MINUTES)
-    conn = sqlite3.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
-    c = conn.cursor()
-
-    # Delete old secrets
-    c.execute("DELETE FROM secrets WHERE upload_time < ?", (expiry_time,))
-
-    # Clean up ip_usage database
-    cutoff_time = datetime.now() - timedelta(minutes=QUOTA_RENEWAL_MINUTES)
-    #cutoff_time = cutoff_time.strftime('%Y-%m-%d %H:%M:%S')
-    c.execute("DELETE FROM ip_usage WHERE last_access < ?", (cutoff_time,))
-
-    conn.commit()
-    conn.close()
-
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        await db.execute("DELETE FROM secrets WHERE upload_time < ?", (expiry_time,))
+        cutoff_time = datetime.now() - timedelta(minutes=QUOTA_RENEWAL_MINUTES)
+        await db.execute("DELETE FROM ip_usage WHERE last_access < ?", (cutoff_time,))
+        await db.commit()
 
 async def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
-    app = web.Application()
-    
-    # Setup Jinja2 with the application key
+    # Limit requests to 0.5MB
+    app = web.Application(client_max_size=MAX_CLIENT_SIZE)
+
     aiohttp_jinja2.setup(
         app,
         loader=jinja2.FileSystemLoader('./templates'),
         app_key=APP_KEY,
         context_processors=[version_context_processor]
     )
-    
-    # Define routes in the correct order
+
+    # Initialize the database
+    await init_db()
+
+    # Define routes
     app.router.add_get('/', index)
     app.router.add_post('/lock', upload_secret)
     app.router.add_get('/unlock/{download_code}', unlock_secret_landing)
@@ -391,10 +341,10 @@ async def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
     app.router.add_static('/static', './static')
     app.router.add_get('/{tail:.*}', handle_404)
 
-    # Perform cleanup and consistency check on startup
-    purge_expired()
+    # Run initial cleanup
+    await purge_expired()
 
-    # Schedule the background cleanup task using APScheduler
+    # Schedule periodic background cleanup
     scheduler = AsyncIOScheduler()
     scheduler.add_job(purge_expired, 'interval', minutes=purge_interval_minutes)
     scheduler.start()
@@ -402,4 +352,6 @@ async def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
     return app
 
 if __name__ == '__main__':
-    web.run_app(create_app(), host='0.0.0.0', port=8080)
+    import asyncio
+    app = asyncio.run(create_app())
+    web.run_app(app, host='0.0.0.0', port=8080)

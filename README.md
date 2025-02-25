@@ -10,6 +10,8 @@ CredShare allows you to share sensitive information safely over the internet. En
 
 CredShare maintains anonymity while limiting usage by hashing client IP addresses. You can customize quotas, renewal intervals, secret expiry, and more.
 
+CredShare is asynchronous by nature, allowing it to scale efficiently even on modest hardware. For additional scalability, you can deploy multiple CredShare containers behind a load balancer.
+
 > **Note:** CredShare doesn’t encrypt network traffic on its own. For secure transmission, it is recommended to run it behind a reverse proxy (e.g., Nginx or Traefik) that terminates TLS. CredShare reads the `X-Forwarded-For` header to determine the originating client IP.
 
 ## Table of Contents

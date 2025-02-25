@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-transition">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}CredShare.app{% endblock %}</title>
   <link rel="icon" href="/static/favicon.png" type="image/png">
-  <link rel="stylesheet" href="/static/css/main.css?v1">
+  <link rel="stylesheet" href="/static/css/main.css?v2">
 
   <meta name="title" property="og:title" content="CredShare.app">
   <meta name="image" property="og:image" content="/static/favicon.png">
@@ -57,6 +57,13 @@
       toggleButton.textContent = newTheme === 'dark' ? '☀️' : '🌙';
       localStorage.setItem('theme', newTheme);
     });
+
+    // Once the page has fully loaded, remove the no-transition class
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.documentElement.classList.remove('no-transition');
+      }, 0);
+    });    
   </script>
 </body>
 </html>
