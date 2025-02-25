@@ -34,7 +34,7 @@ else:
         VERSION = "unknown"
 
 # Load configuration from environment variables
-MAX_USES_QUOTA = int(os.getenv('MAX_USES_QUOTA', 50))
+MAX_USES_QUOTA = int(os.getenv('MAX_USES_QUOTA', 5))
 SECRET_EXPIRY_MINUTES = int(os.getenv('SECRET_EXPIRY_MINUTES', 1440))
 QUOTA_RENEWAL_MINUTES = int(os.getenv('QUOTA_RENEWAL_MINUTES', 60))
 PURGE_INTERVAL_MINUTES = int(os.getenv('PURGE_INTERVAL_MINUTES', 5))
