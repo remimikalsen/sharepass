@@ -1,158 +1,248 @@
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
-    color: #333;
+/* ===========================================================
+   Theme Variables & Global Styles (Base Template)
+   =========================================================== */
+   :root {
+    --primary-color: #007acc;
+    --secondary-color: #004d80;
+    --bg-color: #f4f4f4;
+    --text-color: #333;
+    --header-bg: #fff;
+    --footer-bg: #fff;
+    --accent-color: #4caf50;
+    --border-color: #007acc;
+    --link-color: #007acc;
+    --input-bg: #fff;
+  }
+  
+  body.dark {
+    --bg-color: #121212;
+    --text-color: #e0e0e0;
+    --header-bg: #1e1e1e;
+    --footer-bg: #1e1e1e;
+    --primary-color: #1e90ff;
+    --secondary-color: #87cefa;
+    --border-color: #1e90ff;
+    --accent-color: #66bb6a;
+    --link-color: #66bb6a;
+    --input-bg: #302f2f;
+  }
+  
+  body {
+    font-family: 'Roboto', Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-}
-
-header {
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  /* ===========================================================
+     Header & Dark Mode Toggle
+     =========================================================== */
+  header {
+    position: relative;
     padding: 20px;
-    padding-top: 0;
-    padding-bottom: 0;
+    background-color: var(--header-bg);
     text-align: center;
-}
-
-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  header h1 {
+    color: var(--primary-color);
+    font-size: 2.3em;
+    margin-bottom: 0;
+  }
+  
+  p.header {
+    margin-top: 6px;
+    color: var(--secondary-color);
+  }
+  
+  /* Dark Mode Toggle Button */
+  button#theme-toggle {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: transparent;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+    background-color: var(--header-bg);
+    color: var(--primary-color);
+  }
+  
+  @media (max-width: 600px) {
+    button#theme-toggle {
+      position: static;
+      margin-top: 10px;
+    }
+  }
+  
+  /* ===========================================================
+     Main Content Area
+     =========================================================== */
+  main {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 20px;
-}
-
-@media (max-width: 600px) {
+    transition: padding 0.3s ease;
+  }
+  
+  @media (max-width: 600px) {
     main {
-        padding: 10px;
+      padding: 10px;
     }
-}
-
-p.quota-info {
-    margin: 10px;
-    font-size: 0.8em;
-    color: #333;
-    text-align: center;
-    font-weight: bold;
-}
-
-
-footer {
-    padding: 20px;
-}
-
-footer p {
-    text-align: center;
-    color: #333333;
-    margin: 10px;
-}
-
-footer a {
+  }
+  
+  /* ===========================================================
+     Typography & Links
+     =========================================================== */
+  p {
+    font-size: 1.2em;
+  }
+  
+  a.logo-link {
     text-decoration: none;
-    color: #004D80;
-}
-
-
-h1 {
-    color: #007acc;
-    font-size: 2.3em;
-    margin-bottom: 0;
-}
-
-p.header {
-    margin-top: 6px;
-}
-
-h2 {
-    color: #333;
+    color: var(--primary-color);
+    cursor: pointer;
+  }
+  
+  /* Headings */
+  h2 {
+    color: var(--text-color);
     text-align: center;
     font-size: 1.8em;
     font-weight: bold;
     margin-bottom: 20px;
-}
-
-h3 {
-    color: #333;
+  }
+  
+  h3 {
+    color: var(--text-color);
     text-align: center;
     font-size: 1.4em;
     font-weight: bold;
     margin-bottom: 20px;
-}
-
-
-p {
-    font-size: 1.2em;
-    color: #666;
-}
-
-a.logo-link {
+  }
+  
+  /* Quota Info */
+  p.quota-info {
+    margin: 10px;
+    font-size: 0.8em;
+    color: var(--text-color);
+    text-align: center;
+    font-weight: bold;
+  }
+  
+  /* ===========================================================
+     Footer
+     =========================================================== */
+  footer {
+    padding: 20px;
+    background-color: var(--footer-bg);
+  }
+  
+  footer p {
+    text-align: center;
+    margin: 10px;
+    color: var(--text-color);
+  }
+  
+  footer a {
     text-decoration: none;
-    color: #007acc;
-    cursor: hand;
-}
-
-#secret-display,
-#unlock-area,
-#status-wrapper,
-#secret-container {
-    background-color: #fff;
-    border: 2px solid #007acc;
+    color: var(--link-color);
+  }
+  
+  /* ===========================================================
+     Secret Display & Unlock Areas
+     =========================================================== */
+  #secret-display,
+  #unlock-area,
+  #status-wrapper,
+  #secret-container {
+    background-color: var(--header-bg);
+    border: 2px solid var(--border-color);
     border-radius: 8px;
     padding: 10px;
     max-width: 700px;
     text-align: center;
     transition: background-color 0.3s ease;
     position: relative;
-}
-
-
-p.secret-upload-helptext,
-#time-left {
-    font-size: 1em;
-    color: #333333;
-    text-align: center;
-    max-width: 90%;
-    padding: 0 10px;
-}
-
-
-#secret-container.disabled {
-    background-color: #f4f4f4;
+  }
+  
+  #secret-container.disabled {
+    background-color: var(--bg-color);
     border: none;
     cursor: default;
-}
-
-#unlock-area label,
-#secret-container label {
+  }
+  
+  /* Secret Content (blurred until unlocked) */
+  #secret-code {
+    filter: blur(8px);
+    transition: filter 0.3s;
+  }
+  
+  #secret-code.visible {
+    filter: none;
+  }
+  
+  /* Preformatted Secret Display */
+  #secret-display pre {
+    max-height: 400px;
+    overflow: auto;
+    background: #f7f7f7;
+    padding: 10px;
+    border: 1px solid #ddd;
+    max-width: 100%;
+    min-width: 300px;
+    font-size: 1rem;
+    margin: 10px auto;
+    display: block;
+    text-align: left;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+  }
+  
+  /* Input & Label Styles for Unlock Areas */
+  #unlock-area label,
+  #secret-container label {
     display: block;
     font-size: 1.3rem;
-    color: #007acc;
+    color: var(--primary-color);
     cursor: pointer;
     transition: color 0.3s ease;
     max-width: 90%;
     margin: 30px auto;
-}
-
-#unlock-area input,
-#secret-container input {
+  }
+  
+  #unlock-area input,
+  #secret-container input {
+    font-family: inherit;
     font-size: 1rem;
     margin: 10px auto;
     padding: 5px;
-    text-align: center;
+    text-align: left;
     display: block;
     max-width: 100%;
     min-width: 300px;
-}
-
-#secret-display button,
-#unlock-area button,
-#secret-container button,
-#download-area button {
-    background-color: #007acc;
-    color: #fff;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+  }
+  
+  /* Button Styles in Secret Areas */
+  #secret-display button,
+  #unlock-area button,
+  #secret-container button,
+  #download-area button {
+    background-color: var(--primary-color);
+    color: var(--header-bg);
     border: none;
     padding: 10px 20px;
     border-radius: 4px;
@@ -164,18 +254,26 @@ p.secret-upload-helptext,
     justify-content: center;
     gap: 10px;
     width: 200px;
-}
-
-#secret-display button {
+  }
+  
+  #secret-display button {
     margin: 10px auto;
-}
-
-#secret-display span.material-icons {
+  }
+  
+  #secret-display span.material-icons {
     font-size: 1rem;
     padding: 2px;
-}
-
-textarea {
+  }
+  
+  #secret-display button:hover,
+  #unlock-area button:hover,
+  #secret-container button:hover {
+    background-color: var(--secondary-color);
+  }
+  
+  /* Textarea for Secret Input */
+  textarea {
+    font-family: inherit;
     font-size: 1rem;
     margin: 10px auto;
     padding: 5px;
@@ -184,86 +282,82 @@ textarea {
     min-width: 300px;
     max-height: 400px;
     display: block;
-}
-
-#unlock-area p,
-#secret-container p {
-    color: #666;
-}
-
-#secret-display button:hover,
-#unlock-area button:hover,
-#secret-container button:hover {
-    background-color: #005f99;
-}
-
-#secret-display .icon,
-#unlock-area .icon,
-#secret-container .icon {
-    font-size: 2em;
-}
-
-.success-link-back, .success-link {
-    color: #005f99;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+  }
+  
+  /* Paragraphs within Unlock Areas */
+  #unlock-area p,
+  #secret-container p {
+    color: var(--text-color);
+  }
+  
+  /* ===========================================================
+     Success & Status Messages
+     =========================================================== */
+  .success-link-back,
+  .success-link {
+    color: var(--secondary-color);
     text-decoration: none;
-}
-
-.success-link-back:hover, .success-link:hover {
+  }
+  
+  .success-link-back:hover,
+  .success-link:hover {
     text-decoration: underline;
-}
-
-#status-wrapper {
+  }
+  
+  #status-wrapper {
     display: none;
-}
-
-.success-content {
+  }
+  
+  .success-content {
     padding: 0 20px;
     border-radius: 5px;
     text-align: center;
-}
-
-.success-content .sharing-link {
+  }
+  
+  .success-content .sharing-link {
     display: block;
-}
-.success-content .sharing-link a {
+  }
+  
+  .success-content .sharing-link a {
     font-size: 1.5rem;
     display: inline-block;
     word-wrap: break-word;
     overflow-wrap: break-word;
     word-break: break-word;
-    white-space: normal;    
-}
-
-#status-wrapper,
-.success-content {
+    white-space: normal;
+  }
+  
+  #status-wrapper,
+  .success-content {
     max-width: 100%;
-    box-sizing: border-box; 
-}
-
-.success-link {
+    box-sizing: border-box;
+  }
+  
+  .success-link {
     font-weight: normal;
-}
-
-.link-back-span {
+  }
+  
+  .link-back-span {
     display: block;
-    margin: 35px 0;
-    margin-bottom: 20px;
-}
-
-.success-span-direct {
+    margin: 35px 0 20px;
+  }
+  
+  .success-span-direct {
     display: block;
     font-size: 0.8em;
-}
-
-.success-span-share {
+  }
+  
+  .success-span-share {
     font-weight: normal;
     display: block;
     margin: 10px;
-}
-
-.success-button {
-    background-color: #007acc;
-    color: white;
+  }
+  
+  .success-button {
+    background-color: var(--primary-color);
+    color: #fff;
     border: none;
     padding: 5px;
     border-radius: 5px;
@@ -272,64 +366,67 @@ textarea {
     display: inline;
     align-items: center;
     justify-content: center;
-}
-
-.success-button .material-icons {
+  }
+  
+  .success-button .material-icons {
     font-size: 1.5em;
-    margin: 0px;
-}
-
-.success-button:hover {
-    background-color: #005f99;
-}
-
-#success-message, #error-message {
+    margin: 0;
+  }
+  
+  .success-button:hover {
+    background-color: var(--secondary-color);
+  }
+  
+  #success-message,
+  #error-message {
     font-size: 1.2em;
     margin-top: 20px;
     transition: opacity 0.5s ease;
-}
-
-#error-message {
+  }
+  
+  #error-message {
     color: #a80000;
-}
-
-img.snapfile-logo {
+  }
+  
+  /* Logo Image */
+  img.snapfile-logo {
     width: 24px;
     vertical-align: middle;
     margin-right: 10px;
-}
-
-#link-copy-notification {
+  }
+  
+  /* ===========================================================
+     Notifications & Overlays
+     =========================================================== */
+  #link-copy-notification {
     position: fixed;
     top: 20px;
     right: 20px;
-    background-color: #4CAF50; /* Green background */
-    color: white; /* White text */
-    padding: 15px; /* Padding */
-    border-radius: 5px; /* Rounded corners */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Shadow for better visibility */
-    transition: opacity 0.5s ease-in-out; /* Smooth fade-out transition */
-    z-index: 1000; /* Ensure it appears above other elements */
-}
-
-div.to-home {
+    background-color: var(--accent-color);
+    color: #fff;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: opacity 0.5s ease-in-out;
+    z-index: 1000;
+  }
+  
+  div.to-home {
     margin-bottom: 30px;
-}
-
-/* Container positioning */
-.container {
+  }
+  
+  /* Container & Loading Overlay */
+  .container {
     position: relative;
     transition: opacity 0.5s ease;
   }
   
-/* Grey-out effect for the container */
-.container.greyed {
+  .container.greyed {
     opacity: 0.5;
-    pointer-events: none; /* Prevent further interaction while loading */
-}
+    pointer-events: none;
+  }
   
-/* Loading overlay covers the entire container */
-#loading-overlay {
+  #loading-overlay {
     position: absolute;
     top: 0;
     left: 0;
@@ -344,67 +441,44 @@ div.to-home {
     pointer-events: none;
   }
   
-  /* When active, show the loading overlay */
   #loading-overlay.visible {
     opacity: 1;
   }
   
-  /* Fade in animation for messages */
+  /* Fade-in Animation */
   .fade-in {
     animation: fadeIn 0.5s forwards;
   }
+  
   @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
   }
-
+  
+  /* ===========================================================
+     Additional Utility Styles
+     =========================================================== */
   .unlock-success {
-        font-size: 1.3rem;
-        color: #339136;
-    }
-
+    font-size: 1.3rem;
+    color: #339136;
+  }
+  
   #unlock-area #download-key-error {
-        color: #a80000;
-        display: none;
-  }  
-
+    color: #a80000;
+    display: none;
+  }
+  
   p.sharing-hint {
     font-size: 80%;
   }
-
+  
   #secret-unlocked-container {
     display: none;
   }
-
-
-  /* Initially, the secret can be hidden (blurred or masked) */
-#secret-code {
-    filter: blur(8px);
-    transition: filter 0.3s;
-  }
   
-  /* When visible, remove the blur effect */
-  #secret-code.visible {
-    filter: none;
-  }
-
-
-  #secret-display pre {
-    max-height: 400px;       /* Adjust as needed */
-    overflow: auto;          /* Makes it scrollable if content is long */
-    background: #f7f7f7;      /* A light background for code */
-    padding: 10px;
-    border: 1px solid #ddd;
-    max-width: 100%;
-    min-width: 300px;
-    font-size: 1rem;
-    margin: 10px auto;
-    display: block;
-    text-align: left;
-  }
-
-
+  /* SVG Icons */
   svg.feather {
     width: 24px;
     height: 24px;
-}
+  }
+  

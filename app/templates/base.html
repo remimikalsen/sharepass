@@ -1,44 +1,62 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}CredShare.app{% endblock %}</title>
-    <link rel="icon" href="/static/favicon.png" type="image/png">
-    <link rel="stylesheet" href="/static/css/main.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CredShare.app{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.png" type="image/png">
+  <link rel="stylesheet" href="/static/css/main.css?v1">
 
-    <meta name="title" property="og:title" content="CredShare.app">
-    <meta name="image" property="og:image" content="/static/favicon.png">
-    <meta name="author" content="Remi Mikalsen">
-    <meta name="description" property="og:description" content="Share passwords and other secrets securely with CredShare.app. Your secrets are encrypted and can only be unlocked with the key you provide.">
-    <meta name="keywords" content="password, secret, sharing, encryption, secure, safe, link, key, CredShare, CredShare.app">
-    <meta property="og:url" content="https://credshare.app">
+  <meta name="title" property="og:title" content="CredShare.app">
+  <meta name="image" property="og:image" content="/static/favicon.png">
+  <meta name="author" content="Remi Mikalsen">
+  <meta name="description" property="og:description" content="Share passwords and other secrets securely with CredShare.app. Your secrets are encrypted and can only be unlocked with the key you provide.">
+  <meta name="keywords" content="password, secret, sharing, encryption, secure, safe, link, key, CredShare, CredShare.app">
+  <meta property="og:url" content="https://credshare.app">
 
-    {% block extra_head %}{% endblock %}
-    {{ ANALYTICS_SCRIPT|safe }}
+  {% block extra_head %}{% endblock %}
+  {{ ANALYTICS_SCRIPT|safe }}
 </head>
 <body>
-    <header>
-        <a href="/" class="logo-link"><h1>CredShare.app</h1></a>
-        <p class="header">Simple and secure password sharing</p>
-    </header>
+  <header>
+    <a href="/" class="logo-link"><h1>CredShare.app</h1></a>
+    <p class="header">Simple and secure password sharing</p>
+    <!-- Dark Mode Toggle Button -->
+    <button title="Toggle dark Mode" id="theme-toggle" aria-label="Toggle Dark Mode">🌙</button>
+  </header>
+  
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  
+  <footer>
+    <p>
+      Version <a href="https://github.com/remimikalsen/sharepass/pkgs/container/credshare">{{ VERSION }}</a>. Brought to you by <a href="https://theawesomegarage.com" target="_blank">TheAwesomeGarage.com</a>
+    </p>
+    <p>
+      Why not try out <a href="https://snapfile.me" target="_blank">Snapfile.me</a>? File sharing made simple.
+    </p>
+    <p>
+      View the source code on <a href="https://github.com/remimikalsen/sharepass" target="_blank">GitHub.com</a>
+    </p>
+  </footer>
+  
+  {% block extra_scripts %}{% endblock %}
+  <script>
+    // Check for a saved theme or default to 'light'
+    const toggleButton = document.getElementById('theme-toggle');
+    const currentTheme = localStorage.getItem('theme') || 'light';
+    if (currentTheme === 'dark') {
+      document.body.classList.add('dark');
+      toggleButton.textContent = '☀️';
+    }
     
-    <main>
-        {% block content %}{% endblock %}
-    </main>
-    
-    <footer>
-        <p>
-            Version <a href="https://github.com/remimikalsen/sharepass/pkgs/container/credshare">{{ VERSION }}</a>. Brought to you by <a href="https://theawesomegarage.com" target="_blank">TheAwesomeGarage.com</a>
-        </p>
-        <p>
-            Why not try out <a href="https://snapfile.me" target="_blank">Snapfile.me</a>? File sharing made simple.
-        </p>
-        <p>
-            View the source code on <a href="https://github.com/remimikalsen/sharepass" target="_blank">GitHub.com</a>
-        </p>
-    </footer>
-    
-    {% block extra_scripts %}{% endblock %}
+    toggleButton.addEventListener('click', () => {
+      document.body.classList.toggle('dark');
+      const newTheme = document.body.classList.contains('dark') ? 'dark' : 'light';
+      toggleButton.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+      localStorage.setItem('theme', newTheme);
+    });
+  </script>
 </body>
 </html>
