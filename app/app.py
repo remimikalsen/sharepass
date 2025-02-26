@@ -34,12 +34,14 @@ else:
         VERSION = "unknown"
 
 # Load configuration from environment variables
+HTTPS_ONLY = os.getenv('HTTPS_ONLY', 'false').lower() == 'true' # Default to False
 MAX_USES_QUOTA = int(os.getenv('MAX_USES_QUOTA', 5))
 SECRET_EXPIRY_MINUTES = int(os.getenv('SECRET_EXPIRY_MINUTES', 1440))
 QUOTA_RENEWAL_MINUTES = int(os.getenv('QUOTA_RENEWAL_MINUTES', 60))
 PURGE_INTERVAL_MINUTES = int(os.getenv('PURGE_INTERVAL_MINUTES', 5))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', 5))
 ANALYTICS_SCRIPT = os.getenv('ANALYTICS_SCRIPT', '')
+ANALYTICS_SCRIPT_CSP = os.getenv('ANALYTICS_SCRIPT_CSP', '')
 
 # Constants to avoid abuse
 MAX_CLIENT_SIZE = 1024 * 768  # 0.75MB
@@ -317,9 +319,38 @@ async def purge_expired():
         await db.execute("DELETE FROM ip_usage WHERE last_access < ?", (cutoff_time,))
         await db.commit()
 
+
+# --- Middleware ---
+
+@web.middleware
+async def security_headers_middleware(request, handler):
+    response = await handler(request)
+    # Set Content Security Policy
+    csp = (
+        "default-src 'self' {analytics_script_csp}; "
+        "script-src 'self' 'unsafe-inline' {analytics_script_csp}; "
+        "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self'; "
+        "img-src 'self' data:;"
+    ).format(analytics_script_csp=ANALYTICS_SCRIPT_CSP)
+    response.headers["Content-Security-Policy"] = csp
+    # Prevent MIME type sniffing
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    # Prevent clickjacking
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    # Use HSTS if serving over HTTPS
+    if HTTPS_ONLY:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    # Referrer information policy
+    response.headers["Referrer-Policy"] = "same-origin"
+    return response
+
+
+# --- Application Factory ---
+
 async def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
     # Limit requests to 0.5MB
-    app = web.Application(client_max_size=MAX_CLIENT_SIZE)
+    app = web.Application(client_max_size=MAX_CLIENT_SIZE, middlewares=[security_headers_middleware])
 
     aiohttp_jinja2.setup(
         app,

@@ -134,12 +134,14 @@ docker run -d \
 
 Modify `--env` variables or your `docker-compose.yml` file to match your setup:
 
+- `HTTPS_ONLY`: Set to true to enable Strict-Transport-Security header (default: false)
 - `MAX_USES_QUOTA`: Maximum uploads allowed per IP address (default: 5).
 - `MAX_ATTEMPTS`: Maximum number of unlocking attempts (default: 5).
 - `SECRET_EXPIRY_MINUTES`: Time in minutes before a secret expires (default: 1440 minutes or 24 hours).
 - `QUOTA_RENEWAL_MINUTES`: Interval for resetting the usage quota (default: 60 minutes).
 - `PURGE_INTERVAL_MINUTES`: Interval for purging expired secrets (default: 5 minutes).
 - `ANALYTICS_SCRIPT`: Complete script tag needed for tracking (default: '').
+- `ANALYTICS_SCRIPT_CSP`: If the analytics script is located on a different domain, add the domain to the CSP header; e.g. https://plausible.yourdomain.com (default: '')
 
 Ensure that the database directory exists on your system to persist the database.
 
