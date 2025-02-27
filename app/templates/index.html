@@ -130,14 +130,13 @@
               xhr.open('POST', '/lock', true);
 
               xhr.onload = () => {
-                  hideLoading();
-                  if (xhr.status === 200) {
-                      showSuccess(xhr.responseText);
-                  } else if (xhr.status === 429) {
-                      showError(xhr.responseText);
-                  } else {
-                      showError('Error creating a sharing link. The secret has been discarded.');
-                  }
+                hideLoading();
+                if (xhr.status === 200) {
+                    showSuccess(xhr.responseText);
+                } else {
+                    // Use the response text if it exists, otherwise fallback to a generic error message.
+                    showError(xhr.responseText || 'Error creating a sharing link. The secret has been discarded.');
+                }
               };
 
               xhr.onerror = () => {
