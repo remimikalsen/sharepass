@@ -1,0 +1,44 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.2, pytest-8.3.4, pluggy-1.5.0
+rootdir: /testbench
+configfile: pytest.ini
+plugins: aiohttp-1.1.0, cov-6.0.0, playwright-0.7.0, base-url-2.1.0, asyncio-0.25.3
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collected 24 items / 4 deselected / 20 selected
+
+tests/unit/test_check_limit_endpoint.py .                                [  5%]
+tests/unit/test_create_app.py .                                          [ 10%]
+tests/unit/test_create_secret.py .                                       [ 15%]
+tests/unit/test_index.py .                                               [ 20%]
+tests/unit/test_middleware.py .                                          [ 25%]
+tests/unit/test_misc.py ...                                              [ 40%]
+tests/unit/test_purge_expired.py .                                       [ 45%]
+tests/unit/test_quota.py ....                                            [ 65%]
+tests/unit/test_time_left.py ...                                         [ 80%]
+tests/unit/test_unlock_landing.py ..                                     [ 90%]
+tests/unit/test_unlock_secret.py ..                                      [100%]
+
+---------- coverage: platform linux, python 3.13.2-final-0 -----------
+Name         Stmts   Miss  Cover   Missing
+------------------------------------------
+app/app.py     235     21    91%   29-36, 174, 181, 186, 205, 254-255, 261, 272, 298-302, 357, 445, 494-497
+------------------------------------------
+TOTAL          235     21    91%
+Coverage XML written to file tests/coverage.xml
+
+
+======================= 20 passed, 4 deselected in 3.43s =======================
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
+  <linearGradient id="a" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <rect rx="3" width="120" height="20" fill="#555"/>
+  <rect rx="3" x="70" width="50" height="20" fill="#4c1"/>
+  <path fill="#4c1" d="M70 0h4v20h-4z"/>
+  <rect rx="3" width="120" height="20" fill="url(#a)"/>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana" font-size="11">
+    <text x="35" y="14">coverage</text>
+    <text x="95" y="14">91%</text>
+  </g>
+</svg>
