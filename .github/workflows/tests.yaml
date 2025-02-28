@@ -5,11 +5,13 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write   # allows pushing badge
+
 jobs:
   check_and_test:
     runs-on: self-hosted
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -32,10 +34,36 @@ jobs:
         run: |
           docker run --rm sharepass-tests lint
 
-      - name: Run unit tests
+      - name: Run unit tests and capture badge output if changed
+        id: run_tests
         run: |
-          docker run --rm sharepass-tests test-unit
+          BADGE=$(docker run --rm sharepass-tests test-unit)
+          if [ -n "$BADGE" ]; then
+            echo "$BADGE" > tests/coverage-badge.svg
+            echo "Badge updated."
+            echo "badge_updated=true" >> $GITHUB_OUTPUT
+          else
+            echo "Badge unchanged."
+            echo "badge_updated=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Run E2E tests
         run: |
           docker run --rm sharepass-tests test-e2e
+
+      - name: Commit updated coverage badge if changed
+        if: steps.run_tests.outputs.badge_updated == 'true'
+        run: |
+          # Start SSH agent and configure Git
+          eval $(ssh-agent -s)
+          ssh-add <(echo "$DEPLOY_KEY")
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git remote set-url origin git@github.com:${{ github.repository }}.git
+          
+          # Commit and push the updated badge
+          git add tests/coverage-badge.svg
+          git commit -m "ci: update coverage badge"
+          git push origin main
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}

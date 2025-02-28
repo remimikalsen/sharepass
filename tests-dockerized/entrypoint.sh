@@ -20,7 +20,11 @@ if [ "$1" = "test-e2e" ]; then
 
 elif [ "$1" = "test-unit" ]; then
     # Just run the unit tests (that do NOT require a running server)
-    pytest -m "not e2e"
+    # Update coverage information too
+    pytest --cov-report=xml:tests/coverage.xml -m "not e2e"
+
+    # Generate the coverage badge and output the content for the test workflow to use
+    python generate_coverage_badge.py --print-svg-if-changed
 
 elif [ "$1" = "lint" ]; then
     flake8 .    
