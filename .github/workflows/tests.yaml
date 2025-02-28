@@ -67,6 +67,7 @@ jobs:
           git remote set-url origin git@github.com:${{ github.repository }}.git
           
           # Commit and push the updated badge
+          git pull
           git add tests/coverage-badge.svg
           git commit -m "ci: update coverage badge"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
