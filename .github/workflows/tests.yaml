@@ -59,6 +59,11 @@ jobs:
           ssh-add <(echo "$DEPLOY_KEY")
           mkdir -p ~/.ssh
           ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+          # Set Git identity
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@sharepass"
+
           git remote set-url origin git@github.com:${{ github.repository }}.git
           
           # Commit and push the updated badge

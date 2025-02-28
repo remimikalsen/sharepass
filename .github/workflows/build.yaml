@@ -71,7 +71,7 @@ jobs:
         run: |
           echo "${{ env.VERSION }}" > VERSION
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@workflow-testing"
+          git config user.email "github-actions[bot]@sharepass"
           git add VERSION
           git commit -m "ci: update VERSION file to ${{ env.VERSION }} [skip ci]"
           git push origin main
@@ -102,7 +102,7 @@ jobs:
         run: |
           # Configure Git
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "github-actions[bot]@sharepass"
 
           # Create and push the new tag
           git tag "${{ env.VERSION }}" -m "ci: release version ${{ env.VERSION }}"
