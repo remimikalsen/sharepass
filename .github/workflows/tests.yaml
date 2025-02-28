@@ -54,22 +54,27 @@ jobs:
       - name: Commit updated coverage badge if changed
         if: steps.run_tests.outputs.badge_updated == 'true'
         run: |
-          # Start SSH agent and configure Git
+          # Start SSH agent
           eval $(ssh-agent -s)
           ssh-add <(echo "$DEPLOY_KEY")
           mkdir -p ~/.ssh
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-          # Set Git identity
+          # Configure Git identity
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@sharepass"
 
-          git remote set-url origin git@github.com:${{ github.repository }}.git
-          
+          # Make sure we have enough history to do merges or pulls
+          # (Fetch all commits so we can pull properly)
+          git fetch --prune --unshallow || true
+          git fetch origin +refs/heads/${{ github.event.pull_request.head.ref }}:refs/remotes/origin/${{ github.event.pull_request.head.ref }}
+
+          # Create (or reset) a local branch to track the PR branch
+          git checkout -B ${{ github.event.pull_request.head.ref }} origin/${{ github.event.pull_request.head.ref }}
+
           # Commit and push the updated badge
-          git pull
           git add tests/coverage-badge.svg
           git commit -m "ci: update coverage badge"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          git push origin ${{ github.event.pull_request.head.ref }}
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
