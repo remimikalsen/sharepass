@@ -47,10 +47,6 @@ jobs:
             echo "badge_updated=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Run E2E tests
-        run: |
-          docker run --rm sharepass-tests test-e2e
-
       - name: Commit updated coverage badge if changed
         if: steps.run_tests.outputs.badge_updated == 'true'
         run: |
@@ -78,3 +74,7 @@ jobs:
           git push origin ${{ github.event.pull_request.head.ref }}
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+
+      - name: Run E2E tests
+        run: |
+          docker run --rm sharepass-tests test-e2e
