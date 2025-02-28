@@ -68,7 +68,7 @@ jobs:
           # Create (or reset) a local branch to track the PR branch
           git checkout -B ${{ github.event.pull_request.head.ref }} origin/${{ github.event.pull_request.head.ref }}
 
-          # Commit and push the updated badge
+          # Commit and push updated badge
           git add tests/coverage-badge.svg
           git commit -m "ci: update coverage badge"
           git push origin ${{ github.event.pull_request.head.ref }}
