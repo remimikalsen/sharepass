@@ -120,7 +120,11 @@
         } else {
           // Decryption failed.
           errorMessage.style.display = 'block';
-          errorMessage.innerText = result.error || "Failed to unlock secret.";
+          let errorText = result.error || "Failed to unlock secret.";
+          if (result.attempts_remaining !== undefined) {
+            errorText += ` You have ${result.attempts_remaining} attempts remaining.`;
+          }
+          errorMessage.innerText = errorText;
         }
       } catch (error) {
         errorMessage.style.display = 'block';
@@ -128,6 +132,7 @@
         console.error('Unlock error:', error);
       }
     }
+
     
     function copyToClipboard(text) {
       navigator.clipboard.writeText(text)

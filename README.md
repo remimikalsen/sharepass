@@ -1,3 +1,4 @@
+![Test Status](https://img.shields.io/github/actions/workflow/status/remimikalsen/sharepass/tests.yaml?label=tests)
 ![Build Status](https://img.shields.io/github/actions/workflow/status/remimikalsen/sharepass/build.yaml)
 ![License](https://img.shields.io/github/license/remimikalsen/sharepass)
 ![Version](https://img.shields.io/github/tag/remimikalsen/sharepass)
@@ -169,6 +170,14 @@ Set up a Python virtual environment for local development to manage Python packa
   pip install -r requirements.txt  
   pip-sync requirements.txt
   ```
+
+- For developers dependencies, use the `requirements-dev.txt` file. You get flake8, black and testing.
+  - Run `flake8 .` in the project root to run linting
+  - Run `black .` in the project root to fix code automatically
+
+- To run tests, install dev-requirements and:
+  - `pytest -m "e2e"` for Playwright tests; but make sure your app is running on localhost:8080 first.
+  - `pytest -m "no e2e"` for Unit tests. The app doesn't need to run
 
 ### Javascript dependencies
 
