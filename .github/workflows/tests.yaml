@@ -69,6 +69,6 @@ jobs:
           # Commit and push the updated badge
           git add tests/coverage-badge.svg
           git commit -m "ci: update coverage badge"
-          git push origin main
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
