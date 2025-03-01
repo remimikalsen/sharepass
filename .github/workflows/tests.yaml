@@ -53,34 +53,14 @@ jobs:
           # Extract the coverage XML and store it as tests/coverage.xml
           awk '/-----BEGIN COVERAGE XML-----/{flag=1; next} /-----END COVERAGE XML-----/{flag=0} flag' docker_output.txt > coverage.xml
 
-      - name: Commit updated coverage badge
-        #if: steps.run_tests.outputs.badge_updated == 'true'
-        run: |
-          # Start SSH agent
-          eval $(ssh-agent -s)
-          ssh-add <(echo "$DEPLOY_KEY")
-          mkdir -p ~/.ssh
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-
-          # Configure Git identity
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@sharepass"
-
-          # Stash uncommited changes
-          git stash -u          
-          
-          # Make sure we have the test-reports branch locally (or create it if missing)
-          git fetch origin test-reports || echo "test-reports branch not found, will create."
-          git checkout -B test-reports origin/test-reports || git checkout -b test-reports
-
-          # Pop our stash
-          git stash pop || echo "No stashed changes to pop, or merge conflicts."
-
-          git add coverage-badge.svg coverage.xml
-          git commit -m "chore: update coverage badge [skip ci]" || echo "Nothing to commit"
-          git push origin test-reports
-        env:
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report-${{ github.event.pull_request.number }}
+          path: |
+            coverage-badge.svg
+            coverage.xml
+          retention-days: 30 
 
       - name: Run E2E tests
         run: |
