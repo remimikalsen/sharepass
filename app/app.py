@@ -20,38 +20,38 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 # Determine VERSION from file
-VERSION_FILE_PATH = os.path.join(os.path.dirname(__file__), 'VERSION')
+VERSION_FILE_PATH = os.path.join(os.path.dirname(__file__), "VERSION")
 VERSION = "unknown"
 if os.path.isfile(VERSION_FILE_PATH):
-    with open(VERSION_FILE_PATH, 'r') as version_file:
+    with open(VERSION_FILE_PATH, "r") as version_file:
         VERSION = version_file.read().strip() or "unknown"
 else:
     parent_dir_version_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), 'VERSION'
+        os.path.dirname(os.path.dirname(__file__)), "VERSION"
     )
     if os.path.isfile(parent_dir_version_path):
-        with open(parent_dir_version_path, 'r') as version_file:
+        with open(parent_dir_version_path, "r") as version_file:
             VERSION = version_file.read().strip() + "-development"
     else:
         VERSION = "unknown"
 
 # Load configuration from environment variables
-HTTPS_ONLY = os.getenv('HTTPS_ONLY', 'false').lower() == 'true'  # Default to False
-MAX_USES_QUOTA = int(os.getenv('MAX_USES_QUOTA', 5))
-SECRET_EXPIRY_MINUTES = int(os.getenv('SECRET_EXPIRY_MINUTES', 1440))
-QUOTA_RENEWAL_MINUTES = int(os.getenv('QUOTA_RENEWAL_MINUTES', 60))
-PURGE_INTERVAL_MINUTES = int(os.getenv('PURGE_INTERVAL_MINUTES', 5))
-MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', 5))
-ANALYTICS_SCRIPT = os.getenv('ANALYTICS_SCRIPT', '')
-ANALYTICS_SCRIPT_CSP = os.getenv('ANALYTICS_SCRIPT_CSP', '')
+HTTPS_ONLY = os.getenv("HTTPS_ONLY", "false").lower() == "true"  # Default to False
+MAX_USES_QUOTA = int(os.getenv("MAX_USES_QUOTA", 5))
+SECRET_EXPIRY_MINUTES = int(os.getenv("SECRET_EXPIRY_MINUTES", 1440))
+QUOTA_RENEWAL_MINUTES = int(os.getenv("QUOTA_RENEWAL_MINUTES", 60))
+PURGE_INTERVAL_MINUTES = int(os.getenv("PURGE_INTERVAL_MINUTES", 5))
+MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", 5))
+ANALYTICS_SCRIPT = os.getenv("ANALYTICS_SCRIPT", "")
+ANALYTICS_SCRIPT_CSP = os.getenv("ANALYTICS_SCRIPT_CSP", "")
 
 # Constants to avoid abuse
 MAX_CLIENT_SIZE = 1024 * 768  # 0.75MB
 MAX_SECRET_SIZE = 1024 * 512  # 0.5MB
 
-DATABASE_DIR = '/app/database'
-DATABASE_PATH = os.path.join(DATABASE_DIR, 'secrets.db')
-APP_KEY = 'aiohttp_jinja2_environment'
+DATABASE_DIR = "/app/database"
+DATABASE_PATH = os.path.join(DATABASE_DIR, "secrets.db")
+APP_KEY = "aiohttp_jinja2_environment"
 
 # Ensure the database directory exists
 os.makedirs(DATABASE_DIR, exist_ok=True)
@@ -77,7 +77,7 @@ sqlite3.register_converter("DATETIME", convert_datetime)
 
 # --- Context Processor for Templates ---
 async def version_context_processor(_):
-    return {'VERSION': VERSION, 'ANALYTICS_SCRIPT': ANALYTICS_SCRIPT}
+    return {"VERSION": VERSION, "ANALYTICS_SCRIPT": ANALYTICS_SCRIPT}
 
 
 # --- Helper Functions ---
@@ -116,9 +116,9 @@ def hash_ip(ip):
 
 def get_client_ip(request):
     """Retrieve the client's IP address from the request and hash it."""
-    forwarded_for = request.headers.get('X-Forwarded-For')
+    forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
-        ip = forwarded_for.split(',')[0].strip()
+        ip = forwarded_for.split(",")[0].strip()
     else:
         ip = request.remote
     return hash_ip(ip)
@@ -148,7 +148,7 @@ async def ip_reached_quota(ip):
 def generate_download_code(length=12):
     """Generate a random download code."""
     characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for _ in range(length))
+    return "".join(random.choice(characters) for _ in range(length))
 
 
 # --- Request Handlers ---
@@ -159,12 +159,12 @@ async def index(request):
     secret_expiry_minutes = SECRET_EXPIRY_MINUTES % 60
 
     context = {
-        'secret_expiry_hours': secret_expiry_hours,
-        'secret_expiry_minutes': secret_expiry_minutes,
-        'max_attempts': MAX_ATTEMPTS,
+        "secret_expiry_hours": secret_expiry_hours,
+        "secret_expiry_minutes": secret_expiry_minutes,
+        "max_attempts": MAX_ATTEMPTS,
     }
     return aiohttp_jinja2.render_template(
-        'index.html', request, context, app_key=APP_KEY
+        "index.html", request, context, app_key=APP_KEY
     )
 
 
@@ -177,7 +177,7 @@ async def upload_secret(request):
 
     reader = await request.multipart()
     field = await reader.next()
-    if field is None or field.name != 'encryptedsecret':
+    if field is None or field.name != "encryptedsecret":
         return web.Response(text="No secret field in form.", status=400)
 
     secret = await field.text()
@@ -218,7 +218,7 @@ async def upload_secret(request):
 
 
 async def unlock_secret_landing(request):
-    download_code = request.match_info['download_code']
+    download_code = request.match_info["download_code"]
     async with aiosqlite.connect(
         DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
     ) as db:
@@ -230,15 +230,15 @@ async def unlock_secret_landing(request):
     if row:
         download_link = f"/unlock/{download_code}"
         context = {
-            'download_link': download_link,
-            'download_code': download_code,
-            'max_attempts': MAX_ATTEMPTS,
+            "download_link": download_link,
+            "download_code": download_code,
+            "max_attempts": MAX_ATTEMPTS,
         }
         return aiohttp_jinja2.render_template(
-            'download.html', request, context, app_key=APP_KEY
+            "download.html", request, context, app_key=APP_KEY
         )
 
-    response = aiohttp_jinja2.render_template('404.html', request, {}, app_key=APP_KEY)
+    response = aiohttp_jinja2.render_template("404.html", request, {}, app_key=APP_KEY)
     response.set_status(404)
     return response
 
@@ -276,9 +276,9 @@ async def unlock_secret(request):
 
         try:
             encrypted_data = json.loads(encrypted_secret_json)
-            salt = base64.b64decode(encrypted_data['salt'])
-            iv = base64.b64decode(encrypted_data['iv'])
-            ciphertext = base64.b64decode(encrypted_data['ciphertext'])
+            salt = base64.b64decode(encrypted_data["salt"])
+            iv = base64.b64decode(encrypted_data["iv"])
+            ciphertext = base64.b64decode(encrypted_data["ciphertext"])
 
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
@@ -325,7 +325,7 @@ async def unlock_secret(request):
 
 
 async def handle_404(request):
-    response = aiohttp_jinja2.render_template('404.html', request, {}, app_key=APP_KEY)
+    response = aiohttp_jinja2.render_template("404.html", request, {}, app_key=APP_KEY)
     response.set_status(404)
     return response
 
@@ -378,7 +378,7 @@ async def check_limit(request):
 
 
 async def time_left(request):
-    download_code = request.match_info['download_code']
+    download_code = request.match_info["download_code"]
     async with aiosqlite.connect(
         DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
     ) as db:
@@ -461,7 +461,7 @@ async def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
 
     aiohttp_jinja2.setup(
         app,
-        loader=jinja2.FileSystemLoader('./templates'),
+        loader=jinja2.FileSystemLoader("./templates"),
         app_key=APP_KEY,
         context_processors=[version_context_processor],
     )
@@ -470,28 +470,28 @@ async def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
     await init_db()
 
     # Define routes
-    app.router.add_get('/', index)
-    app.router.add_post('/lock', upload_secret)
-    app.router.add_get('/unlock/{download_code}', unlock_secret_landing)
-    app.router.add_post('/unlock_secret', unlock_secret)
-    app.router.add_get('/check-limit', check_limit)
-    app.router.add_get('/time-left/{download_code}', time_left)
-    app.router.add_static('/static', './static')
-    app.router.add_get('/{tail:.*}', handle_404)
+    app.router.add_get("/", index)
+    app.router.add_post("/lock", upload_secret)
+    app.router.add_get("/unlock/{download_code}", unlock_secret_landing)
+    app.router.add_post("/unlock_secret", unlock_secret)
+    app.router.add_get("/check-limit", check_limit)
+    app.router.add_get("/time-left/{download_code}", time_left)
+    app.router.add_static("/static", "./static")
+    app.router.add_get("/{tail:.*}", handle_404)
 
     # Run initial cleanup
     await purge_expired()
 
     # Schedule periodic background cleanup
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(purge_expired, 'interval', minutes=purge_interval_minutes)
+    scheduler.add_job(purge_expired, "interval", minutes=purge_interval_minutes)
     scheduler.start()
 
     return app
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
 
     app = asyncio.run(create_app())
-    web.run_app(app, host='0.0.0.0', port=8080)
+    web.run_app(app, host="0.0.0.0", port=8080)

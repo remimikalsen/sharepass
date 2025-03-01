@@ -29,6 +29,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report-${{ steps.pr_meta.outputs.number }}
+          path: tests          
+
       - name: Update remote URL to use SSH
         run: git remote set-url origin git@github.com:${{ github.repository }}.git
 
@@ -67,13 +73,21 @@ jobs:
           echo "VERSION=$NEXT_VERSION" >> $GITHUB_ENV
           echo "MAJOR=$NEXT_MAJOR" >> $GITHUB_ENV
 
-      - name: Update VERSION file using deploy key
+      - name: Update VERSION file and commit coverage artifacts
         run: |
           echo "${{ env.VERSION }}" > VERSION
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@sharepass"
-          git add VERSION
-          git commit -m "ci: update VERSION file to ${{ env.VERSION }} [skip ci]"
+
+          # Check if coverage artifacts exist before committing
+          if [ -f "tests/coverage-badge.svg" ] && [ -f "tests/coverage.xml" ]; then
+            git add VERSION tests/coverage-badge.svg tests/coverage.xml
+            git commit -m "ci: update VERSION file to ${{ env.VERSION }} and coverage artifacts [skip ci]"
+          else
+            git add VERSION
+            git commit -m "ci: update VERSION file to ${{ env.VERSION }} [skip ci]"
+          fi
+
           git push origin main
           
       - name: Set up Docker Buildx
