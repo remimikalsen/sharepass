@@ -27,7 +27,7 @@ TOTAL          235     21    91%
 Coverage XML written to file tests/coverage.xml
 
 
-======================= 20 passed, 4 deselected in 3.54s =======================
+======================= 20 passed, 4 deselected in 3.48s =======================
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
   <linearGradient id="a" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
