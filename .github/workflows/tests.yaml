@@ -59,10 +59,16 @@ jobs:
           # Configure Git identity
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@sharepass"
+
+          # Stash uncommited changes
+          git stash -u          
           
           # Make sure we have the test-reports branch locally (or create it if missing)
           git fetch origin test-reports || echo "test-reports branch not found, will create."
-          git checkout test-reports || git checkout -b test-reports
+          git checkout -B test-reports origin/test-reports || git checkout -b test-reports
+
+          # Pop our stash
+          git stash pop || echo "No stashed changes to pop, or merge conflicts."
 
           # Copy in the updated coverage badge & coverage.xml
           cp tests/coverage-badge.svg coverage-badge.svg
