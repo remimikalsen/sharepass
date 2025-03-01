@@ -22,6 +22,9 @@ elif [ "$1" = "test-unit" ]; then
     # Just run the unit tests (that do NOT require a running server)
     # and capture output for CI processing in tests.yaml
 
+    # Change to the tests directory
+    cd tests
+
     # Run unit tests with coverage and capture all output.
     PYTEST_OUTPUT=$(pytest --cov-report=xml:coverage.xml -m "not e2e" 2>&1)
     PYTEST_EXIT_CODE=$?
