@@ -76,10 +76,6 @@ jobs:
           # Pop our stash
           git stash pop || echo "No stashed changes to pop, or merge conflicts."
 
-          # Copy in the updated coverage badge & coverage.xml
-          cp coverage-badge.svg coverage-badge.svg
-          cp coverage.xml coverage.xml
-
           git add coverage-badge.svg coverage.xml
           git commit -m "chore: update coverage badge [skip ci]" || echo "Nothing to commit"
           git push origin test-reports
