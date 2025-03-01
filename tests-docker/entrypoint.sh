@@ -53,7 +53,8 @@ elif [ "$1" = "test-unit" ]; then
     exit $PYTEST_EXIT_CODE
 
 elif [ "$1" = "lint" ]; then
-    flake8 .
+    cd tests
+    flake8 ../app
 
 else
     # Default: run the app as normal
