@@ -20,6 +20,7 @@ RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY /tests ./tests
 COPY pytest.ini .
 COPY pyproject.toml .
+COPY generate_coverage_badge.py .
 
 # The entrypoint defines different ways for the app to run
 #  - docker run --rm snapfile-tests lint

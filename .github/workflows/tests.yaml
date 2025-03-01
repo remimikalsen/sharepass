@@ -5,11 +5,13 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write   # allows pushing badge
+
 jobs:
   check_and_test:
     runs-on: self-hosted
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -32,9 +34,52 @@ jobs:
         run: |
           docker run --rm sharepass-tests lint
 
-      - name: Run unit tests
+      - name: Run unit tests and capture badge output if changed
+        id: run_tests
         run: |
-          docker run --rm sharepass-tests test-unit
+          BADGE=$(docker run --rm sharepass-tests test-unit)
+          if [ -n "$BADGE" ]; then
+            echo "$BADGE" > tests/coverage-badge.svg
+            echo "Badge updated."
+            echo "badge_updated=true" >> $GITHUB_OUTPUT
+          else
+            echo "Badge unchanged."
+            echo "badge_updated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit updated coverage badge if changed
+        if: steps.run_tests.outputs.badge_updated == 'true'
+        run: |
+          # Start SSH agent
+          eval $(ssh-agent -s)
+          ssh-add <(echo "$DEPLOY_KEY")
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+          # Configure Git identity
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@sharepass"
+
+          # Stash uncommited changes
+          git stash -u          
+          
+          # Make sure we have the test-reports branch locally (or create it if missing)
+          git fetch origin test-reports || echo "test-reports branch not found, will create."
+          git checkout -B test-reports origin/test-reports || git checkout -b test-reports
+
+          # Pop our stash
+          git stash pop || echo "No stashed changes to pop, or merge conflicts."
+
+          # Copy in the updated coverage badge & coverage.xml
+          cp tests/coverage-badge.svg coverage-badge.svg
+          #cp tests/coverage.xml coverage.xml  # if you also produce coverage.xml
+
+          git add coverage-badge.svg 
+          # Use "[skip ci]" in commit message if you have any workflows that trigger on push
+          git commit -m "chore: update coverage badge [skip ci]" || echo "Nothing to commit"
+          git push origin test-reports
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
 
       - name: Run E2E tests
         run: |

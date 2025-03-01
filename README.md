@@ -1,4 +1,5 @@
 ![Test Status](https://img.shields.io/github/actions/workflow/status/remimikalsen/sharepass/tests.yaml?label=tests)
+![Coverage Badge](https://raw.githubusercontent.com/remimikalsen/sharepass/test-reports/coverage-badge.svg)
 ![Build Status](https://img.shields.io/github/actions/workflow/status/remimikalsen/sharepass/build.yaml)
 ![License](https://img.shields.io/github/license/remimikalsen/sharepass)
 ![Version](https://img.shields.io/github/tag/remimikalsen/sharepass)
