@@ -68,7 +68,7 @@ jobs:
           cp tests/coverage-badge.svg coverage-badge.svg
           #cp tests/coverage.xml coverage.xml  # if you also produce coverage.xml
 
-          git add coverage-badge.svg coverage.xml
+          git add coverage-badge.svg 
           # Use "[skip ci]" in commit message if you have any workflows that trigger on push
           git commit -m "chore: update coverage badge [skip ci]" || echo "Nothing to commit"
           git push origin test-reports
