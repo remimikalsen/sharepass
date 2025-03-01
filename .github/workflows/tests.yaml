@@ -59,19 +59,19 @@ jobs:
           # Configure Git identity
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@sharepass"
+          
+          # Make sure we have the test-reports branch locally (or create it if missing)
+          git fetch origin test-reports || echo "test-reports branch not found, will create."
+          git checkout test-reports || git checkout -b test-reports
 
-          # Make sure we have enough history to do merges or pulls
-          # (Fetch all commits so we can pull properly)
-          git fetch --prune --unshallow || true
-          git fetch origin +refs/heads/${{ github.event.pull_request.head.ref }}:refs/remotes/origin/${{ github.event.pull_request.head.ref }}
+          # Copy in the updated coverage badge & coverage.xml
+          cp tests/coverage-badge.svg coverage-badge.svg
+          #cp tests/coverage.xml coverage.xml  # if you also produce coverage.xml
 
-          # Create (or reset) a local branch to track the PR branch
-          git checkout -B ${{ github.event.pull_request.head.ref }} origin/${{ github.event.pull_request.head.ref }}
-
-          # Commit and push updated badge
-          git add tests/coverage-badge.svg
-          git commit -m "[skip ci]: update coverage badge"
-          git push origin ${{ github.event.pull_request.head.ref }}
+          git add coverage-badge.svg coverage.xml
+          # Use "[skip ci]" in commit message if you have any workflows that trigger on push
+          git commit -m "chore: update coverage badge [skip ci]" || echo "Nothing to commit"
+          git push origin test-reports
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
 
