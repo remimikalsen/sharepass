@@ -24,11 +24,11 @@ jobs:
           docker build \
             --cache-from ghcr.io/remimikalsen/python-testbed:v1 \
             -t ghcr.io/remimikalsen/python-testbed:v1 \
-            -f tests-dockerized/Dockerfile.testbed .
+            -f tests-docker/Dockerfile.testbed .
 
       - name: Build test docker image
         run: |
-          docker build -t sharepass-tests -f tests-dockerized/Dockerfile.tests .
+          docker build -t sharepass-tests -f tests-docker/Dockerfile.tests .
 
       - name: Run linter
         run: |
