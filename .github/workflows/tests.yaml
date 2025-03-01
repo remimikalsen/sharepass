@@ -54,7 +54,7 @@ jobs:
           awk '/-----BEGIN COVERAGE XML-----/{flag=1; next} /-----END COVERAGE XML-----/{flag=0} flag' docker_output.txt > coverage.xml
 
       - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report-${{ github.event.pull_request.number }}
           path: |
