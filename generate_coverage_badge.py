@@ -53,7 +53,7 @@ def update_badge(xml_path, badge_path, print_if_changed):
             file_changed = False
 
     # If changed, write the new file
-    if true:
+    if True:
         with open(badge_path, 'w') as f:
             f.write(new_svg)
         if print_if_changed:
