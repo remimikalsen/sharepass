@@ -73,6 +73,23 @@ jobs:
           echo "VERSION=$NEXT_VERSION" >> $GITHUB_ENV
           echo "MAJOR=$NEXT_MAJOR" >> $GITHUB_ENV
 
+      - name: Resolve true commit SHA
+        id: sha_resolver
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            ACTUAL_SHA=$(git log --merges --pretty=format:%H -1 | xargs -I{} git show {} --no-patch --format=%P | cut -d' ' -f2)
+            echo "TRUE_SHA=${ACTUAL_SHA:-${{ github.sha }}}" >> $GITHUB_OUTPUT
+          else
+            echo "TRUE_SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+            
+      - name: Get PR metadata
+        uses: 8BitJonny/gh-get-current-pr@3.0.0
+        id: pr_meta
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          sha: ${{ steps.sha_resolver.outputs.TRUE_SHA }}
+
       - name: Update VERSION file and commit coverage artifacts
         run: |
           echo "${{ env.VERSION }}" > VERSION
@@ -121,23 +138,6 @@ jobs:
           # Create and push the new tag
           git tag "${{ env.VERSION }}" -m "ci: release version ${{ env.VERSION }}"
           git push origin "${{ env.VERSION }}"
-
-      - name: Resolve true commit SHA
-        id: sha_resolver
-        run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            ACTUAL_SHA=$(git log --merges --pretty=format:%H -1 | xargs -I{} git show {} --no-patch --format=%P | cut -d' ' -f2)
-            echo "TRUE_SHA=${ACTUAL_SHA:-${{ github.sha }}}" >> $GITHUB_OUTPUT
-          else
-            echo "TRUE_SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
-          fi
-            
-      - name: Get PR metadata
-        uses: 8BitJonny/gh-get-current-pr@3.0.0
-        id: pr_meta
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          sha: ${{ steps.sha_resolver.outputs.TRUE_SHA }}
         
       - name: Check if PR was squashed
         id: check_squash
