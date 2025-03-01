@@ -30,7 +30,7 @@ elif [ "$1" = "test-unit" ]; then
     PYTEST_EXIT_CODE=$?
 
     # Generate the coverage badge SVG and capture its output.
-    BADGE_OUTPUT=$(python generate_coverage_badge.py --print)
+    BADGE_OUTPUT=$(python generate_coverage_badge.py print)
 
     # Read the contents of the coverage.xml file if it exists.
     if [ -f coverage.xml ]; then

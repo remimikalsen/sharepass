@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+
 import xml.etree.ElementTree as ET
 
 def get_coverage_percentage(xml_path):
@@ -34,8 +35,8 @@ def generate_badge_svg(coverage):
 
 def main():
     # Default paths
-    coverage_xml = "tests/coverage.xml"
-    badge_file = "tests/coverage-badge.svg"
+    coverage_xml = "coverage.xml"
+    badge_file = "coverage-badge.svg"
 
     # Process arguments: either no argument or a single "print"
     args = sys.argv[1:]
