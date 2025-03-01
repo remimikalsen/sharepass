@@ -29,12 +29,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download coverage artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-report-${{ steps.pr_meta.outputs.number }}
-          path: tests          
-
       - name: Update remote URL to use SSH
         run: git remote set-url origin git@github.com:${{ github.repository }}.git
 
@@ -89,6 +83,12 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           sha: ${{ steps.sha_resolver.outputs.TRUE_SHA }}
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report-${{ steps.pr_meta.outputs.number }}
+          path: tests          
 
       - name: Update VERSION file and commit coverage artifacts
         run: |
