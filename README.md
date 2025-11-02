@@ -32,6 +32,7 @@ CredShare is asynchronous by nature, allowing it to scale efficiently even on mo
     - [Using Docker](#using-docker)
 - [Configuration Options](#configuration-options)
 - [Accessing the Web Interface](#accessing-the-web-interface)
+- [API Usage (CLI/curl)](#api-usage-clicurl)
 - [Developer Notes](#developer-notes)
 
 ## Features
@@ -150,6 +151,108 @@ Ensure that the database directory exists on your system to persist the database
 ## Accessing the Web Interface
 
 Visit [http://localhost:8080](http://localhost:8080).
+
+## API Usage (CLI/curl)
+
+Sharepass can also be used as a CLI tool via its API endpoints. Secrets created via the web interface can be retrieved via curl, and vice versa.
+
+### Using the CLI Helper
+
+A Python helper script is provided for easy encryption:
+
+```sh
+# Encrypt a secret and generate a curl command
+python sharepass_cli.py "my secret" -k "my-key" -o curl
+
+# Or output just the encryption JSON for custom usage
+python sharepass_cli.py "my secret" -k "my-key"
+
+# Read secret from stdin
+echo "my secret" | python sharepass_cli.py - -k "my-key"
+```
+
+### Creating a Secret via API
+
+**Unix/Linux/Mac (bash):**
+
+```sh
+# 1. Encrypt the secret using the helper script
+ENCRYPTED=$(python sharepass_cli.py "my secret" -k "my-key")
+
+# 2. Create the secret via API (encrypted_secret must be a JSON string)
+curl -X POST http://localhost:8080/api/lock \
+  -H 'Content-Type: application/json' \
+  -d "{\"encrypted_secret\": \"$ENCRYPTED\"}"
+
+# Response: {"download_code": "abc123...", "url": "/unlock/abc123..."}
+```
+
+**Windows PowerShell:**
+
+```powershell
+# 1. Encrypt the secret using the helper script
+$ENCRYPTED = python sharepass_cli.py "my secret" -k "my-key"
+
+# 2. Create the secret via API using Invoke-RestMethod
+$body = @{
+    encrypted_secret = $ENCRYPTED
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri http://localhost:8080/api/lock `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $body
+
+# Or using curl.exe explicitly (if available)
+curl.exe -X POST http://localhost:8080/api/lock `
+  -H "Content-Type: application/json" `
+  -d "{\"encrypted_secret\": \"$ENCRYPTED\"}"
+```
+
+### Retrieving a Secret via API
+
+**Unix/Linux/Mac (bash):**
+
+```sh
+# Unlock and retrieve the secret
+curl -X POST http://localhost:8080/api/unlock \
+  -H 'Content-Type: application/json' \
+  -d '{"download_code": "abc123...", "key": "my-key"}'
+
+# Response: {"secret": "my secret"}
+```
+
+**Windows PowerShell:**
+
+```powershell
+# Unlock and retrieve the secret using Invoke-RestMethod
+$body = @{
+    download_code = "abc123..."
+    key = "my-key"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri http://localhost:8080/api/unlock `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $body
+
+# Or using curl.exe explicitly (if available)
+curl.exe -X POST http://localhost:8080/api/unlock `
+  -H "Content-Type: application/json" `
+  -d '{"download_code": "abc123...", "key": "my-key"}'
+```
+
+### API Endpoints
+
+- `POST /api/lock` - Create a secret
+  - Request: `{"encrypted_secret": "..."}` (JSON string from encryption)
+  - Response: `{"download_code": "...", "url": "/unlock/..."}`
+
+- `POST /api/unlock` - Retrieve a secret
+  - Request: `{"download_code": "...", "key": "..."}`
+  - Response: `{"secret": "..."}` or error message
+
+The encryption format matches the web interface: AES-GCM with PBKDF2 key derivation (100,000 iterations, SHA-256).
 
 ## Developer Notes
 
