@@ -167,6 +167,9 @@ def validate_download_code(code):
 
 def validate_json_content_type(request):
     """Validate that request has correct Content-Type header for JSON."""
+    # Handle cases where headers might not exist or might be None
+    if not hasattr(request, 'headers') or request.headers is None:
+        return False
     content_type = request.headers.get("Content-Type", "")
     # Check for application/json (allow charset parameter)
     return "application/json" in content_type.lower()
