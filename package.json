@@ -13,8 +13,11 @@
     "prismjs": "^1.29.0"
   },
   "devDependencies": {
-    "shx": "^0.3.4",
+    "shx": "^0.4.0",
     "webpack": "^5.97.1",
     "webpack-cli": "^6.0.1"
+  },
+  "overrides": {
+    "glob": "^10.0.0"
   }
 }

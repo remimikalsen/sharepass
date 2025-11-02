@@ -30,7 +30,7 @@ async def test_time_left_available(test_db):
     """
     Verify that time_left returns remaining time details for a secret that is still available.
     """
-    download_code = "avail123"
+    download_code = "avail1234567"  # Must be exactly 12 alphanumeric characters.
     # Insert a secret with an upload_time of now.
     now = datetime.now()
     async with aiosqlite.connect(test_db, detect_types=sqlite3.PARSE_DECLTYPES) as db:
@@ -56,7 +56,7 @@ async def test_time_left_expired(test_db):
     """
     Verify that time_left returns a 410 status and an expiry message for an expired secret.
     """
-    download_code = "expired123"
+    download_code = "expired12345"  # Must be exactly 12 alphanumeric characters.
     # Insert a secret with an upload_time older than SECRET_EXPIRY_MINUTES.
     past_time = datetime.now() - timedelta(minutes=SECRET_EXPIRY_MINUTES + 1)
     async with aiosqlite.connect(test_db, detect_types=sqlite3.PARSE_DECLTYPES) as db:
@@ -82,7 +82,7 @@ async def test_time_left_not_found(test_db):
     """
     Verify that time_left returns a 404 status if no secret is found for the provided download code.
     """
-    download_code = "nonexistent"
+    download_code = "nonexistent1"  # Must be exactly 12 alphanumeric characters.
     request = DummyRequest(download_code)
     response = await time_left(request)
     assert (
@@ -92,3 +92,20 @@ async def test_time_left_not_found(test_db):
     assert (
         data.get("message") == "Download code not found."
     ), "Unexpected message for not found secret"
+
+
+@pytest.mark.asyncio
+async def test_time_left_invalid_format(test_db):
+    """
+    Verify that time_left returns 400 for invalid download code format.
+    """
+    download_code = "invalid"  # Invalid: not 12 characters
+    request = DummyRequest(download_code)
+    response = await time_left(request)
+    assert (
+        response.status == 400
+    ), f"Expected 400 for invalid format, got {response.status}"
+    data = json.loads(response.text)
+    assert (
+        "Invalid download code format" in data.get("message", "")
+    ), "Expected invalid format message"

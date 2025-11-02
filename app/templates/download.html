@@ -21,6 +21,12 @@
       <button id="unlock-button" onclick="unlockSecret()">Unlock!</button>
       <p id="time-left"></p>
     </div>
+    <div id="cli-note" class="cli-hint">
+      <p><strong>💡 Did you know?</strong> You can also retrieve this secret via CLI:</p>
+      <div class="cli-command">
+        <code>curl -X POST {{ base_url }}/api/unlock -H 'Content-Type: application/json' -d '{{ "{" }}"download_code": "{{ download_code }}", "key": "YOUR_KEY"{{ "}" }}'</code>
+      </div>
+    </div>
   </div>
   
   <div id="secret-unlocked-container" style="display:none;">
@@ -162,8 +168,12 @@
         if (response.ok) {
           const data = await response.json();
           if (data.hours_left !== undefined && data.minutes_left !== undefined) {
-            document.getElementById('time-left').innerHTML = 
-              `Time left to unlock: ${data.hours_left} hours and ${data.minutes_left} minutes.<br />Once unlocked, the secret is immediately deleted.`;
+            // Use textContent for safety - create line break via DOM if needed
+            const timeLeftEl = document.getElementById('time-left');
+            timeLeftEl.textContent = `Time left to unlock: ${data.hours_left} hours and ${data.minutes_left} minutes. `;
+            const br = document.createElement('br');
+            timeLeftEl.appendChild(br);
+            timeLeftEl.appendChild(document.createTextNode('Once unlocked, the secret is immediately deleted.'));
           } else {
             document.getElementById('time-left').innerText = data.message;
           }

@@ -1,6 +1,6 @@
 import os
 import uuid
-import random
+import secrets
 import string
 import hashlib
 import json
@@ -48,6 +48,7 @@ ANALYTICS_SCRIPT_CSP = os.getenv("ANALYTICS_SCRIPT_CSP", "")
 # Constants to avoid abuse
 MAX_CLIENT_SIZE = 1024 * 768  # 0.75MB
 MAX_SECRET_SIZE = 1024 * 512  # 0.5MB
+MAX_KEY_LENGTH = 1024  # Maximum key length in characters
 
 DATABASE_DIR = "/app/database"
 DATABASE_PATH = os.path.join(DATABASE_DIR, "secrets.db")
@@ -146,9 +147,32 @@ async def ip_reached_quota(ip):
 
 
 def generate_download_code(length=12):
-    """Generate a random download code."""
+    """Generate a cryptographically secure random download code."""
     characters = string.ascii_letters + string.digits
-    return "".join(random.choice(characters) for _ in range(length))
+    return "".join(secrets.choice(characters) for _ in range(length))
+
+
+def validate_download_code(code):
+    """Validate download code format and length."""
+    if not code or not isinstance(code, str):
+        return False
+    # Download codes should be exactly 12 characters of alphanumeric
+    if len(code) != 12:
+        return False
+    # Only allow alphanumeric characters
+    if not code.isalnum():
+        return False
+    return True
+
+
+def validate_json_content_type(request):
+    """Validate that request has correct Content-Type header for JSON."""
+    # Handle cases where headers might not exist or might be None
+    if not hasattr(request, 'headers') or request.headers is None:
+        return False
+    content_type = request.headers.get("Content-Type", "")
+    # Check for application/json (allow charset parameter)
+    return "application/json" in content_type.lower()
 
 
 # --- Request Handlers ---
@@ -168,25 +192,10 @@ async def index(request):
     )
 
 
-async def upload_secret(request):
-    ip = get_client_ip(request)
-    if await ip_reached_quota(ip):
-        return web.Response(
-            text="You have exceeded the maximum number of shares for today.", status=429
-        )
-
-    reader = await request.multipart()
-    field = await reader.next()
-    if field is None or field.name != "encryptedsecret":
-        return web.Response(text="No secret field in form.", status=400)
-
-    secret = await field.text()
-
-    if len(secret) > MAX_SECRET_SIZE:
-        return web.Response(
-            text=f"Secret too large. Maximum size is {MAX_SECRET_SIZE} bytes.",
-            status=400,
-        )
+async def store_secret(encrypted_secret, ip):
+    """Common function to store a secret in the database."""
+    if len(encrypted_secret) > MAX_SECRET_SIZE:
+        return None, f"Secret too large. Maximum size is {MAX_SECRET_SIZE} bytes."
 
     secret_id = str(uuid.uuid4())
     download_code = generate_download_code()
@@ -197,7 +206,7 @@ async def upload_secret(request):
     ) as db:
         await db.execute(
             "INSERT INTO secrets (id, secret, attempts, download_code, upload_time) VALUES (?, ?, ?, ?, ?)",
-            (secret_id, secret, 0, download_code, upload_time),
+            (secret_id, encrypted_secret, 0, download_code, upload_time),
         )
         async with db.execute("SELECT 1 FROM ip_usage WHERE ip=?", (ip,)) as cursor:
             exists = await cursor.fetchone()
@@ -213,12 +222,39 @@ async def upload_secret(request):
             )
         await db.commit()
 
+    return download_code, None
+
+
+async def upload_secret(request):
+    ip = get_client_ip(request)
+    if await ip_reached_quota(ip):
+        return web.Response(
+            text="You have exceeded the maximum number of shares for today.", status=429
+        )
+
+    reader = await request.multipart()
+    field = await reader.next()
+    if field is None or field.name != "encryptedsecret":
+        return web.Response(text="No secret field in form.", status=400)
+
+    secret = await field.text()
+
+    download_code, error = await store_secret(secret, ip)
+    if error:
+        return web.Response(text=error, status=400)
+
     download_url = f"/unlock/{download_code}"
     return web.Response(text=download_url)
 
 
 async def unlock_secret_landing(request):
     download_code = request.match_info["download_code"]
+    # Validate download code format
+    if not validate_download_code(download_code):
+        response = aiohttp_jinja2.render_template("404.html", request, {}, app_key=APP_KEY)
+        response.set_status(404)
+        return response
+
     async with aiosqlite.connect(
         DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
     ) as db:
@@ -229,10 +265,15 @@ async def unlock_secret_landing(request):
 
     if row:
         download_link = f"/unlock/{download_code}"
+        # Get base URL for CLI examples
+        scheme = request.scheme
+        host = request.host
+        base_url = f"{scheme}://{host}"
         context = {
             "download_link": download_link,
             "download_code": download_code,
             "max_attempts": MAX_ATTEMPTS,
+            "base_url": base_url,
         }
         return aiohttp_jinja2.render_template(
             "download.html", request, context, app_key=APP_KEY
@@ -243,22 +284,23 @@ async def unlock_secret_landing(request):
     return response
 
 
-async def unlock_secret(request):
+async def unlock_secret_logic(download_code, key):
     """
-    Expects JSON data with:
-      - "download_code": the secret identifier.
-      - "key": the user-supplied decryption key.
+    Common logic for unlocking secrets.
+    Returns: (success: bool, result: dict)
+    On success: (True, {"secret": decrypted_secret})
+    On error: (False, {"error": error_message, "status": http_status, "attempts_remaining": remaining})
     """
-    try:
-        data = await request.json()
-    except Exception:
-        return web.json_response({"error": "Invalid JSON."}, status=400)
-
-    download_code = data.get("download_code")
-    key = data.get("key")
-
     if not download_code or not key:
-        return web.json_response({"error": "Missing download_code or key."}, status=400)
+        return False, {"error": "Missing download_code or key.", "status": 400}
+
+    # Validate download code format
+    if not validate_download_code(download_code):
+        return False, {"error": "Invalid download code format.", "status": 400}
+
+    # Validate key length
+    if not isinstance(key, str) or len(key) > MAX_KEY_LENGTH:
+        return False, {"error": f"Key too long. Maximum length is {MAX_KEY_LENGTH} characters.", "status": 400}
 
     async with aiosqlite.connect(
         DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
@@ -269,9 +311,10 @@ async def unlock_secret(request):
         ) as cursor:
             row = await cursor.fetchone()
         if not row:
-            return web.json_response(
-                {"error": "Secret not found or already unlocked."}, status=404
-            )
+            return False, {
+                "error": "Invalid download code or key.",
+                "status": 404,
+            }
         encrypted_secret_json, attempts = row
 
         try:
@@ -299,12 +342,10 @@ async def unlock_secret(request):
                     "DELETE FROM secrets WHERE download_code=?", (download_code,)
                 )
                 await db.commit()
-                return web.json_response(
-                    {
-                        "error": "Incorrect key. Maximum attempts reached. Secret deleted."
-                    },
-                    status=400,
-                )
+                return False, {
+                    "error": "Incorrect key. Maximum attempts reached. Secret deleted.",
+                    "status": 400,
+                }
             else:
                 await db.execute(
                     "UPDATE secrets SET attempts=? WHERE download_code=?",
@@ -312,16 +353,115 @@ async def unlock_secret(request):
                 )
                 await db.commit()
                 remaining = MAX_ATTEMPTS - attempts
-                return web.json_response(
-                    {"error": "Incorrect key.", "attempts_remaining": remaining},
-                    status=400,
-                )
+                return False, {
+                    "error": "Incorrect key.",
+                    "status": 400,
+                    "attempts_remaining": remaining,
+                }
 
         # On success, delete the secret.
         await db.execute("DELETE FROM secrets WHERE download_code=?", (download_code,))
         await db.commit()
 
-    return web.json_response({"secret": decrypted_secret})
+    return True, {"secret": decrypted_secret}
+
+
+async def unlock_secret(request):
+    """
+    Web endpoint for unlocking secrets.
+    Expects JSON data with:
+      - "download_code": the secret identifier.
+      - "key": the user-supplied decryption key.
+    Returns JSON response.
+    """
+    # Validate Content-Type header
+    if not validate_json_content_type(request):
+        return web.json_response({"error": "Content-Type must be application/json."}, status=400)
+
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON."}, status=400)
+
+    download_code = data.get("download_code")
+    key = data.get("key")
+
+    success, result = await unlock_secret_logic(download_code, key)
+
+    if success:
+        return web.json_response({"secret": result["secret"]})
+    else:
+        status = result.get("status", 400)
+        response_data = {"error": result["error"]}
+        if "attempts_remaining" in result:
+            response_data["attempts_remaining"] = result["attempts_remaining"]
+        return web.json_response(response_data, status=status)
+
+
+async def api_lock_secret(request):
+    """
+    API endpoint for creating secrets via curl.
+    Accepts JSON: {"encrypted_secret": "..."}
+    Returns JSON: {"download_code": "...", "url": "..."}
+    """
+    ip = get_client_ip(request)
+    if await ip_reached_quota(ip):
+        return web.json_response(
+            {"error": "You have exceeded the maximum number of shares for today."},
+            status=429,
+        )
+
+    # Validate Content-Type header
+    if not validate_json_content_type(request):
+        return web.json_response({"error": "Content-Type must be application/json."}, status=400)
+
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON."}, status=400)
+
+    encrypted_secret = data.get("encrypted_secret")
+    if not encrypted_secret:
+        return web.json_response({"error": "Missing encrypted_secret field."}, status=400)
+
+    download_code, error = await store_secret(encrypted_secret, ip)
+    if error:
+        return web.json_response({"error": error}, status=400)
+
+    download_url = f"/unlock/{download_code}"
+    return web.json_response({"download_code": download_code, "url": download_url})
+
+
+async def api_unlock_secret(request):
+    """
+    API endpoint for retrieving secrets via curl.
+    Accepts JSON: {"download_code": "...", "key": "..."}
+    Returns plain text secret on success, JSON error on failure.
+    """
+    # Validate Content-Type header
+    if not validate_json_content_type(request):
+        return web.json_response({"error": "Content-Type must be application/json."}, status=400)
+
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON."}, status=400)
+
+    download_code = data.get("download_code")
+    key = data.get("key")
+
+    success, result = await unlock_secret_logic(download_code, key)
+
+    if success:
+        # Return plain text secret on success
+        return web.Response(text=result["secret"], content_type="text/plain")
+    else:
+        # Return JSON error with appropriate HTTP status
+        status = result.get("status", 400)
+        response_data = {"error": result["error"]}
+        if "attempts_remaining" in result:
+            response_data["attempts_remaining"] = result["attempts_remaining"]
+        return web.json_response(response_data, status=status)
 
 
 async def handle_404(request):
@@ -379,6 +519,10 @@ async def check_limit(request):
 
 async def time_left(request):
     download_code = request.match_info["download_code"]
+    # Validate download code format
+    if not validate_download_code(download_code):
+        return web.json_response({"message": "Invalid download code format."}, status=400)
+
     async with aiosqlite.connect(
         DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
     ) as db:
@@ -476,6 +620,9 @@ async def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
     app.router.add_post("/unlock_secret", unlock_secret)
     app.router.add_get("/check-limit", check_limit)
     app.router.add_get("/time-left/{download_code}", time_left)
+    # API endpoints for CLI/curl usage
+    app.router.add_post("/api/lock", api_lock_secret)
+    app.router.add_post("/api/unlock", api_unlock_secret)
     app.router.add_static("/static", "./static")
     app.router.add_get("/{tail:.*}", handle_404)
 

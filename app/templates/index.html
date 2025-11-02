@@ -155,7 +155,14 @@
       function showError(status) {
           secretContainer.style.display = 'none';
           statusWrapper.style.display = 'block';
-          errorMessage.innerHTML = `<div class="error-content fade-in"><p>${status}</p></div>`;
+          // Use textContent to prevent XSS - it automatically escapes HTML
+          const errorDiv = document.createElement('div');
+          errorDiv.className = 'error-content fade-in';
+          const errorP = document.createElement('p');
+          errorP.textContent = status;  // textContent escapes HTML automatically
+          errorDiv.appendChild(errorP);
+          errorMessage.innerHTML = '';  // Clear any existing content
+          errorMessage.appendChild(errorDiv);
       }
 
       function showSuccess(data) {

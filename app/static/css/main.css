@@ -480,6 +480,44 @@
     display: none;
   }
   
+  /* CLI Hint Section */
+  #cli-note.cli-hint {
+    margin-top: 20px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 15px;
+    background-color: var(--header-bg);
+    border-radius: 8px;
+    max-width: 700px;
+    text-align: center;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+    box-sizing: border-box;
+  }
+  
+  #cli-note.cli-hint p {
+    margin: 0 0 10px 0;
+    color: var(--text-color);
+  }
+  
+  #cli-note.cli-hint .cli-command {
+    margin-top: 10px;
+    text-align: left;
+  }
+  
+  #cli-note.cli-hint code {
+    display: block;
+    padding: 10px;
+    background-color: var(--input-bg);
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    word-break: break-all;
+    white-space: pre-wrap;
+    box-sizing: border-box;
+  }
+  
   /* SVG Icons */
   svg.feather {
     width: 24px;
