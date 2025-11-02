@@ -15,6 +15,7 @@ class DummyRequest:
         self.remote = "127.0.0.1"
         self.scheme = "http"  # Required for base_url construction
         self.host = "localhost:8080"  # Required for base_url construction
+        self.headers = {}  # Required for header access in protocol detection
         # Create a minimal Jinja2 environment with simple templates.
         # The objective is not to replicate the download template, but to check that the python function passes the correct context to the template.
         env = jinja2.Environment(

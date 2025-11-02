@@ -24,7 +24,7 @@
     <div id="cli-note" class="cli-hint">
       <p><strong>💡 Did you know?</strong> You can also retrieve this secret via CLI:</p>
       <div class="cli-command">
-        <code>curl -X POST {{ base_url }}/api/unlock -H 'Content-Type: application/json' -d '{{ "{" }}"download_code": "{{ download_code }}", "key": "YOUR_KEY"{{ "}" }}'</code>
+        <code id="cli-curl-command">curl -X POST <span id="curl-base-url">{{ base_url }}</span>/api/unlock -H 'Content-Type: application/json' -d '{{ "{" }}"download_code": "{{ download_code }}", "key": "YOUR_KEY"{{ "}" }}'</code>
       </div>
     </div>
   </div>
@@ -60,6 +60,18 @@
     let timerId;
     feather.replace();
     const linkCopyNotification = document.getElementById('link-copy-notification');
+    
+    // Update curl command base URL to match current page protocol (https preferred)
+    (function() {
+      const curlBaseUrlEl = document.getElementById('curl-base-url');
+      if (curlBaseUrlEl) {
+        // Get current page protocol and host
+        const protocol = window.location.protocol.replace(':', ''); // 'https' or 'http'
+        const host = window.location.host; // 'localhost:8080' or 'example.com'
+        const detectedBaseUrl = `${protocol}://${host}`;
+        curlBaseUrlEl.textContent = detectedBaseUrl;
+      }
+    })();
 
     async function unlockSecret() {
       const keyInput = document.querySelector('input[name="key"]');
