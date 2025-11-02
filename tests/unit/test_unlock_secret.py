@@ -52,6 +52,7 @@ class DummyJSONRequest:
     def __init__(self, data):
         self._data = data
         self.remote = "127.0.0.1"  # Provide a dummy IP.
+        self.headers = {"Content-Type": "application/json"}  # Required for Content-Type validation
 
     async def json(self):
         return self._data
@@ -65,7 +66,7 @@ async def test_unlock_secret_success(test_db):
     """
     secret_text = "This is a top secret message."
     correct_key = "supersecret"
-    download_code = "testcode123"  # Arbitrary download code.
+    download_code = "testcode1234"  # Must be exactly 12 alphanumeric characters.
 
     # Encrypt the secret using our helper.
     encrypted_payload = encrypt_secret_for_test(secret_text, correct_key)
@@ -111,7 +112,7 @@ async def test_unlock_secret_wrong_key(test_db):
     secret_text = "This is another secret."
     correct_key = "correctkey"
     wrong_key = "wrongkey"
-    download_code = "testcode456"
+    download_code = "testcode5678"  # Must be exactly 12 alphanumeric characters.
 
     # Encrypt the secret using our helper.
     encrypted_payload = encrypt_secret_for_test(secret_text, correct_key)

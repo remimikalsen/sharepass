@@ -42,7 +42,7 @@ async def test_db(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_unlock_secret_landing_found(test_db):
-    download_code = "testcode123"
+    download_code = "testcode1234"  # Must be exactly 12 alphanumeric characters.
     now = datetime.now()
     # Insert a secret record into the temporary DB.
     async with aiosqlite.connect(test_db, detect_types=sqlite3.PARSE_DECLTYPES) as db:
@@ -64,10 +64,23 @@ async def test_unlock_secret_landing_found(test_db):
 
 @pytest.mark.asyncio
 async def test_unlock_secret_landing_not_found(test_db):
-    download_code = "nonexistent"
+    download_code = "nonexistent1"  # Must be exactly 12 alphanumeric characters.
     # Do not insert any secret record for this code.
     request = DummyRequest(download_code)
     response = await unlock_secret_landing(request)
     assert response.status == 404, "Expected a 404 response for a nonexistent secret."
+    content = response.text
+    assert "404 Not Found" in content, "Expected the 404 template to be rendered."
+
+
+@pytest.mark.asyncio
+async def test_unlock_secret_landing_invalid_format(test_db):
+    """
+    Verify that unlock_secret_landing returns 404 for invalid download code format.
+    """
+    download_code = "invalid"  # Invalid: not 12 characters
+    request = DummyRequest(download_code)
+    response = await unlock_secret_landing(request)
+    assert response.status == 404, "Expected a 404 response for invalid format."
     content = response.text
     assert "404 Not Found" in content, "Expected the 404 template to be rendered."
