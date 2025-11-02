@@ -266,7 +266,18 @@ async def unlock_secret_landing(request):
     if row:
         download_link = f"/unlock/{download_code}"
         # Get base URL for CLI examples
-        scheme = request.scheme
+        # Prefer HTTPS - check X-Forwarded-Proto header first (if behind proxy),
+        # then use request.scheme, defaulting to https for security
+        forwarded_proto = request.headers.get("X-Forwarded-Proto", "").lower()
+        if forwarded_proto == "https":
+            scheme = "https"
+        elif forwarded_proto == "http":
+            scheme = "http"
+        elif request.scheme == "https":
+            scheme = "https"
+        else:
+            # Default to https for security (if scheme is http, we still prefer https)
+            scheme = "https"
         host = request.host
         base_url = f"{scheme}://{host}"
         context = {
