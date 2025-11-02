@@ -251,7 +251,7 @@ async def unlock_secret_landing(request):
         response = aiohttp_jinja2.render_template("404.html", request, {}, app_key=APP_KEY)
         response.set_status(404)
         return response
-    
+
     async with aiosqlite.connect(
         DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
     ) as db:
@@ -290,11 +290,11 @@ async def unlock_secret_logic(download_code, key):
     """
     if not download_code or not key:
         return False, {"error": "Missing download_code or key.", "status": 400}
-    
+
     # Validate download code format
     if not validate_download_code(download_code):
         return False, {"error": "Invalid download code format.", "status": 400}
-    
+
     # Validate key length
     if not isinstance(key, str) or len(key) > MAX_KEY_LENGTH:
         return False, {"error": f"Key too long. Maximum length is {MAX_KEY_LENGTH} characters.", "status": 400}
@@ -374,7 +374,7 @@ async def unlock_secret(request):
     # Validate Content-Type header
     if not validate_json_content_type(request):
         return web.json_response({"error": "Content-Type must be application/json."}, status=400)
-    
+
     try:
         data = await request.json()
     except Exception:
@@ -384,7 +384,7 @@ async def unlock_secret(request):
     key = data.get("key")
 
     success, result = await unlock_secret_logic(download_code, key)
-    
+
     if success:
         return web.json_response({"secret": result["secret"]})
     else:
@@ -438,7 +438,7 @@ async def api_unlock_secret(request):
     # Validate Content-Type header
     if not validate_json_content_type(request):
         return web.json_response({"error": "Content-Type must be application/json."}, status=400)
-    
+
     try:
         data = await request.json()
     except Exception:
@@ -448,7 +448,7 @@ async def api_unlock_secret(request):
     key = data.get("key")
 
     success, result = await unlock_secret_logic(download_code, key)
-    
+
     if success:
         # Return plain text secret on success
         return web.Response(text=result["secret"], content_type="text/plain")
@@ -519,7 +519,7 @@ async def time_left(request):
     # Validate download code format
     if not validate_download_code(download_code):
         return web.json_response({"message": "Invalid download code format."}, status=400)
-    
+
     async with aiosqlite.connect(
         DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
     ) as db:
