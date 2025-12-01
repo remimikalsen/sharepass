@@ -37,10 +37,10 @@ jobs:
       - name: Run unit tests and capture test coverage output
         id: run_tests
         run: |
-          # Run the container WITH output preserved
+          # Run the container WITH output preserved and save to file
           set +e
-          docker run --rm sharepass-tests test-unit 2>&1
-          EXIT_CODE=${PIPESTATUS[0]}
+          docker run --rm sharepass-tests test-unit > docker_output.txt 2>&1
+          EXIT_CODE=$?
           set -e
       
           # Extract and print the pytest output
