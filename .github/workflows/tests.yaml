@@ -37,8 +37,12 @@ jobs:
       - name: Run unit tests and capture test coverage output
         id: run_tests
         run: |
-          # Run the container and capture the full output
+          # Run the container and capture the full output and exit code
+          set +e  # Don't exit on error, we'll handle it manually
           OUTPUT=$(docker run --rm sharepass-tests test-unit)
+          EXIT_CODE=$?
+          set -e  # Re-enable exit on error for the rest of the script
+          
           echo "$OUTPUT" > docker_output.txt
 
           # Extract and print the pytest output
@@ -52,6 +56,9 @@ jobs:
 
           # Extract the coverage XML and store it as tests/coverage.xml
           awk '/-----BEGIN COVERAGE XML-----/{flag=1; next} /-----END COVERAGE XML-----/{flag=0} flag' docker_output.txt > coverage.xml
+          
+          # Exit with the same code as the docker run command
+          exit $EXIT_CODE
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4

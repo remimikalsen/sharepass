@@ -136,7 +136,7 @@ jobs:
         run: |
           wget https://github.com/opengrep/opengrep/releases/download/v1.12.0/opengrep_manylinux_x86 -O opengrep
           chmod +x opengrep
-          ./opengrep ci --sarif --sarif-output opengrep_report.sarif --config auto --supress-errors
+          ./opengrep ci --sarif --sarif-output opengrep_report.sarif --config auto --suppress-errors
         shell: bash -l {0}
 
       - name: Upload OpenGrep results to GitHub Security tab
