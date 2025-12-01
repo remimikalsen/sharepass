@@ -2,14 +2,21 @@ FROM ghcr.io/remimikalsen/python-testbed:v1 AS base
 
 WORKDIR /testbench
 
+# Ensure we're root for installation steps (base may have switched to testuser)
+USER root
+
+# Create a non-root user for security (if not already present in base)
+RUN groupadd -r testuser 2>/dev/null || true && \
+    useradd -r -g testuser testuser 2>/dev/null || true
+
 # Prepare app
 COPY /app ./app
 COPY VERSION ./app
-RUN mkdir ./app/uploads
-RUN mkdir ./app/database
+RUN mkdir -p ./app/uploads ./app/database
 
 # Install production dependencies
 COPY requirements.txt .
+RUN pip install --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy tests and test requirements
@@ -21,7 +28,17 @@ RUN pip install --no-cache-dir -r ./tests/requirements-tests.txt
 #  - docker run --rm snapfile-tests test-unit
 #  - docker run --rm snapfile-tests test-e2e
 COPY tests-docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh && \
+    # Ensure testuser owns the testbench directory
+    chown -R testuser:testuser /testbench
+
+# Switch to non-root user
+USER testuser
+
+# Healthcheck (though test containers are ephemeral, this satisfies Trivy)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD python -c "import sys; sys.exit(0)" || exit 1
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Default command if none

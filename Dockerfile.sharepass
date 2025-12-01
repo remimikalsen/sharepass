@@ -1,5 +1,5 @@
 # Stage 1: Build assets using Node
-FROM node:22-alpine AS builder
+FROM node:25-alpine AS builder
 WORKDIR /app
 
 # Copy npm files and install dependencies
@@ -16,8 +16,11 @@ RUN npm run build-highlight
 RUN npm run copy-assets
 
 # Stage 2: Build the final image using slim Python image
-FROM python:3.13-slim
+FROM python:3.14-slim
 WORKDIR /app
+
+# Create a non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 # Copy the static assets from the builder stage
 COPY --from=builder /app /app
@@ -25,9 +28,20 @@ COPY --from=builder /app /app
 # Copy your application code and install Python dependencies
 COPY ./app /app
 #COPY requirements.txt /app
-RUN mkdir /app/database
-RUN pip install --no-cache-dir -r requirements.txt
+RUN mkdir /app/database && \
+    pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
+
+# Healthcheck to verify the application is running
+# Uses Python's built-in urllib to check if the app responds
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/')" || exit 1
+
 CMD ["python", "app.py"]

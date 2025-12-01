@@ -1,0 +1,13 @@
+# Trivy ignore file
+# Add vulnerability IDs, secret IDs, or misconfiguration IDs to ignore
+# Format: CVE-YYYY-NNNNN or specific vulnerability ID
+#
+# Example:
+# CVE-2023-12345
+# CVE-2024-67890
+#
+# You can also ignore by package:
+# # Accept the risk for package:version
+#
+# Add your whitelisted vulnerabilities below:
+
