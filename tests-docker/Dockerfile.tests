@@ -7,6 +7,9 @@ FROM ghcr.io/remimikalsen/python-testbed:v1 AS base
 
 WORKDIR /testbench
 
+# Ensure Playwright browsers path is set (inherited from base, but explicit for clarity)
+ENV PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/playwright-browsers
+
 # Ensure we're root for installation steps (base may have switched to testuser)
 USER root
 

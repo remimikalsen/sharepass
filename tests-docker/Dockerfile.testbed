@@ -25,7 +25,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir pytest pytest-asyncio
 
 # Install Playwright (or any e2e tool you choose) and its browsers (if needed)
-RUN pip install --no-cache-dir playwright && playwright install
+# Install browsers system-wide so they're accessible to all users
+ENV PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/playwright-browsers
+RUN pip install --no-cache-dir playwright && \
+    playwright install --with-deps && \
+    # Ensure browsers are accessible to all users
+    chmod -R a+rx /usr/local/share/playwright-browsers
 
 # Create a non-root user for security
 RUN groupadd -r testuser && useradd -r -g testuser testuser && \
