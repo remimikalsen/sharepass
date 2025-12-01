@@ -1,4 +1,9 @@
 FROM ghcr.io/remimikalsen/python-testbed:v1 AS base
+# Build the base testbed image first:
+#   docker build -t sharepass-testbed:latest -f tests-docker/Dockerfile.testbed .
+# Then build this image:
+#   docker build -t sharepass-tests -f tests-docker/Dockerfile.tests .
+#FROM sharepass-testbed:latest
 
 WORKDIR /testbench
 
@@ -12,7 +17,10 @@ RUN groupadd -r testuser 2>/dev/null || true && \
 # Prepare app
 COPY /app ./app
 COPY VERSION ./app
-RUN mkdir -p ./app/uploads ./app/database
+RUN mkdir -p ./app/uploads ./app/database && \
+    # Create /app directory structure for app.py compatibility (it expects /app/database)
+    # The app code has DATABASE_DIR = "/app/database" hardcoded
+    mkdir -p /app/database /app/uploads
 
 # Install production dependencies
 COPY requirements.txt .
@@ -29,8 +37,8 @@ RUN pip install --no-cache-dir -r ./tests/requirements-tests.txt
 #  - docker run --rm snapfile-tests test-e2e
 COPY tests-docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh && \
-    # Ensure testuser owns the testbench directory
-    chown -R testuser:testuser /testbench
+    # Ensure testuser owns the testbench directory and /app directories
+    chown -R testuser:testuser /testbench /app
 
 # Switch to non-root user
 USER testuser

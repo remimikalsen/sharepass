@@ -39,7 +39,7 @@ jobs:
         run: |
           # Run the container WITH output preserved
           set +e
-          docker run --rm sharepass-tests test-unit 2>&1 | tee docker_output.txt
+          docker run --rm sharepass-tests test-unit 2>&1
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
       
