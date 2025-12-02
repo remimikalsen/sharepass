@@ -2,9 +2,22 @@
 FROM node:25-alpine AS builder
 WORKDIR /app
 
-# Copy npm files and install dependencies
+# Copy npm configuration and package files
+COPY .npmrc ./
 COPY package*.json ./
-RUN npm install
+
+# Run npm audit before installing to check for vulnerabilities
+# This checks the package-lock.json for known vulnerabilities
+# Fail the build if high or higher vulnerabilities are found
+RUN npm audit --audit-level=high || \
+    (echo "ERROR: npm audit found vulnerabilities at high level or higher." && \
+     echo "Please review and fix vulnerabilities before proceeding." && \
+     npm audit --audit-level=high && exit 1)
+
+# Install dependencies using npm ci for reproducible builds
+# Install scripts are disabled by default via .npmrc (ignore-scripts=true)
+# npm ci respects .npmrc settings automatically
+RUN npm ci
 
 # Copy the rest of the project files
 COPY . .

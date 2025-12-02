@@ -2,7 +2,11 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build-highlight": "webpack",
-    "copy-assets": "shx mkdir -p app/static/js app/static/css && shx cp node_modules/feather-icons/dist/feather.min.js app/static/js/feather.min.js && shx cp node_modules/highlight.js/styles/default.min.css app/static/css/highlight.default.min.css"
+    "copy-assets": "shx mkdir -p app/static/js app/static/css && shx cp node_modules/feather-icons/dist/feather.min.js app/static/js/feather.min.js && shx cp node_modules/highlight.js/styles/default.min.css app/static/css/highlight.default.min.css",
+    "audit": "npm audit --audit-level=high",
+    "audit:critical": "npm audit --audit-level=critical",
+    "audit:fix": "npm audit fix",
+    "audit:check": "npm audit --audit-level=high || (echo 'ERROR: Vulnerabilities found. Run npm audit:fix to attempt automatic fixes, or review manually.' && exit 1)"
   },
   "keywords": [],
   "author": "",

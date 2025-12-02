@@ -25,7 +25,7 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -174,6 +174,20 @@ jobs:
 
           git push origin main
           
+      - name: Setup Node.js for npm audit
+        uses: actions/setup-node@v6
+        with:
+          node-version: '25'
+
+      - name: Run npm audit before build
+        run: |
+          echo "Running npm audit to check for vulnerabilities..."
+          npm audit --audit-level=high || \
+            (echo "::error::npm audit found vulnerabilities at high level or higher." && \
+             echo "Please review and fix vulnerabilities before proceeding." && \
+             npm audit --audit-level=high && exit 1)
+          echo "npm audit passed - no high or higher vulnerabilities found."
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
