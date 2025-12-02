@@ -19,7 +19,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js for npm audit
+        uses: actions/setup-node@v6
+        with:
+          node-version: '25'
+          cache: 'npm'
+
+      - name: Run npm audit
+        run: |
+          echo "Running npm audit as part of security scanning..."
+          npm audit --audit-level=high || \
+            (echo "::error::npm audit found vulnerabilities at high level or higher." && \
+             npm audit --audit-level=high && exit 1)
+          echo "npm audit passed - no high or higher vulnerabilities found."
 
       - name: Run Trivy vulnerability scanner in repo mode
         uses: aquasecurity/trivy-action@0.33.1
@@ -70,7 +84,7 @@ jobs:
     needs: []
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -130,7 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0  # Full history for better secret detection
 
