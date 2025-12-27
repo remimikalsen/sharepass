@@ -15,6 +15,13 @@ def test_security_headers(page: Page, base_url: str):
     csp = headers.get("content-security-policy")
     assert csp is not None, "Content-Security-Policy header is missing"
     assert "default-src 'self'" in csp, "CSP does not include expected default-src directive"
+    # Verify that script-src does NOT contain unsafe-inline (should use nonces instead)
+    assert "'unsafe-inline'" not in csp or "script-src" not in csp or "'unsafe-inline'" not in csp.split("script-src")[1].split(";")[0], "CSP script-src should not contain unsafe-inline"
+
+    # Verify Permissions-Policy header is present
+    permissions_policy = headers.get("permissions-policy")
+    assert permissions_policy is not None, "Permissions-Policy header is missing"
+    assert "geolocation=()" in permissions_policy, "Permissions-Policy should restrict geolocation"
 
     # Verify other security headers.
     assert (

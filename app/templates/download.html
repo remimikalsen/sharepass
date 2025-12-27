@@ -18,7 +18,7 @@
         <input id="key" type="text" name="key" placeholder="Unlock me...">
         <p id="download-key-error"></p>
       </label>
-      <button id="unlock-button" onclick="unlockSecret()">Unlock!</button>
+      <button id="unlock-button">Unlock!</button>
       <p id="time-left"></p>
     </div>
     <div id="cli-note" class="cli-hint">
@@ -56,7 +56,7 @@
 {% block extra_scripts %}
   <script src="/static/js/highlight.bundle.min.js"></script>
   <script src="/static/js/feather.min.js"></script>
-  <script>
+  <script nonce="{{ CSP_NONCE }}">
     let timerId;
     feather.replace();
     const linkCopyNotification = document.getElementById('link-copy-notification');
@@ -209,5 +209,8 @@
     }
 
     window.onload = startTimer;
+    
+    // Add event listener for unlock button
+    document.getElementById('unlock-button').addEventListener('click', unlockSecret);
   </script>
 {% endblock %}

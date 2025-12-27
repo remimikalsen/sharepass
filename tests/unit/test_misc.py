@@ -33,8 +33,15 @@ async def test_init_db(tmp_path, monkeypatch):
 # 2. Test the version context processor.
 @pytest.mark.asyncio
 async def test_version_context_processor():
-    # The processor doesn't really use the request, so a dummy object is sufficient.
-    dummy_request = object()
+    # Create a dict-like request object that supports get() and item assignment
+    class DummyRequest(dict):
+        def __init__(self):
+            super().__init__()
+        
+        def get(self, key, default=None):
+            return super().get(key, default)
+    
+    dummy_request = DummyRequest()
     context = await version_context_processor(dummy_request)
     assert (
         context.get("VERSION") == VERSION
@@ -42,6 +49,20 @@ async def test_version_context_processor():
     assert (
         context.get("ANALYTICS_SCRIPT") == ANALYTICS_SCRIPT
     ), "ANALYTICS_SCRIPT in context does not match module-level value."
+    # Verify CSP_NONCE is generated
+    assert (
+        "CSP_NONCE" in context
+    ), "CSP_NONCE should be in context."
+    assert (
+        context.get("CSP_NONCE") is not None
+    ), "CSP_NONCE should not be None."
+    assert (
+        len(context.get("CSP_NONCE")) > 0
+    ), "CSP_NONCE should not be empty."
+    # Verify nonce is stored in request
+    assert (
+        dummy_request.get("csp_nonce") == context.get("CSP_NONCE")
+    ), "Nonce should be stored in request for middleware use."
 
 
 # 3. Test the 404 handler.
