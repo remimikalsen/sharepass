@@ -37,10 +37,10 @@ async def test_version_context_processor():
     class DummyRequest(dict):
         def __init__(self):
             super().__init__()
-        
+
         def get(self, key, default=None):
             return super().get(key, default)
-    
+
     dummy_request = DummyRequest()
     context = await version_context_processor(dummy_request)
     assert (

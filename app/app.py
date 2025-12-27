@@ -84,11 +84,7 @@ async def version_context_processor(request):
     except (TypeError, AttributeError):
         # Fallback for requests that don't support dict-like access (shouldn't happen with aiohttp)
         pass
-    return {
-        "VERSION": VERSION,
-        "ANALYTICS_SCRIPT": ANALYTICS_SCRIPT,
-        "CSP_NONCE": nonce
-    }
+    return {"VERSION": VERSION, "ANALYTICS_SCRIPT": ANALYTICS_SCRIPT, "CSP_NONCE": nonce}
 
 
 # --- Helper Functions ---
@@ -563,10 +559,10 @@ async def purge_expired():
 @web.middleware
 async def security_headers_middleware(request, handler):
     response = await handler(request)
-    
+
     # Get nonce from request (set by context processor)
     nonce = request.get("csp_nonce", "")
-    
+
     # Set Content Security Policy with nonce instead of unsafe-inline for scripts
     # Note: style-src still uses unsafe-inline as it's less critical and harder to fix
     script_src_parts = ["'self'"]
@@ -574,21 +570,21 @@ async def security_headers_middleware(request, handler):
         script_src_parts.append(f"'nonce-{nonce}'")
     if ANALYTICS_SCRIPT_CSP:
         script_src_parts.append(ANALYTICS_SCRIPT_CSP)
-    
+
     default_src_parts = ["'self'"]
     if ANALYTICS_SCRIPT_CSP:
         default_src_parts.append(ANALYTICS_SCRIPT_CSP)
-    
+
     csp_parts = [
         f"default-src {' '.join(default_src_parts)}",
         f"script-src {' '.join(script_src_parts)}",
         "style-src 'self' 'unsafe-inline'",
         "font-src 'self'",
-        "img-src 'self' data:"
+        "img-src 'self' data:",
     ]
     csp = "; ".join(csp_parts) + ";"
     response.headers["Content-Security-Policy"] = csp
-    
+
     # Add Permissions-Policy header to restrict dangerous features
     permissions_policy = (
         "geolocation=(), "
@@ -606,7 +602,7 @@ async def security_headers_middleware(request, handler):
         "picture-in-picture=()"
     )
     response.headers["Permissions-Policy"] = permissions_policy
-    
+
     # Prevent MIME type sniffing
     response.headers["X-Content-Type-Options"] = "nosniff"
     # Prevent clickjacking
@@ -668,4 +664,5 @@ if __name__ == "__main__":
     import asyncio
 
     app = asyncio.run(create_app())
-    web.run_app(app, host="0.0.0.0", port=8080)
+    # Binding to 0.0.0.0 is required for container deployment
+    web.run_app(app, host="0.0.0.0", port=8080)  # nosec B104

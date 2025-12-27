@@ -37,35 +37,17 @@ repos:
 
       - id: pip-audit
         name: pip-audit - Python dependency vulnerability scanner
-        entry: bash
-        language: system
+        entry: pip-audit --requirement requirements.txt
+        language: python
         pass_filenames: false
-        args:
-          - -c
-          - |
-            echo "Running pip-audit to check Python dependencies..."
-            pip install pip-audit
-            pip-audit --requirement requirements.txt --format table || {
-              echo
-              echo "❌ pip-audit found vulnerabilities in Python dependencies."
-              exit 1
-            }
+        additional_dependencies: [pip-audit]
 
       - id: bandit
         name: bandit - Python security linter
-        entry: bash
-        language: system
+        entry: bandit -r app/ -f screen
+        language: python
         pass_filenames: false
-        args:
-          - -c
-          - |
-            echo "Running bandit for Python code security analysis..."
-            pip install bandit[toml]
-            bandit -r app/ -f screen || {
-              echo
-              echo "❌ bandit found security issues in Python code."
-              exit 1
-            }
+        additional_dependencies: ["bandit[toml]"]
 
   # Python code quality
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -80,10 +62,20 @@ repos:
       - id: check-toml
       - id: detect-private-key
 
-  # Python formatting (optional - adjust based on your preferences)
+  # Python formatting
   - repo: https://github.com/psf/black
     rev: 25.11.0
     hooks:
       - id: black
         language_version: python3
         args: ['--line-length=100']
+        files: ^app/
+
+  # Python linting (flake8) - matches pipeline configuration
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        additional_dependencies: [flake8-pyproject]
+        args: ['--max-line-length=88', '--extend-ignore=E501']
+        files: ^app/

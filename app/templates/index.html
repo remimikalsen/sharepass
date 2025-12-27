@@ -216,7 +216,7 @@
 
       // Add event listener for upload button
       document.getElementById('upload-button').addEventListener('click', uploadSecret);
-      
+
       window.addEventListener('load', () => {
           fetch('/check-limit')
               .then(response => response.json())
