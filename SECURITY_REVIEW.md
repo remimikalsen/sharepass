@@ -189,7 +189,7 @@ The SharePass project demonstrates a **strong security posture** with comprehens
 1. ✅ **CSP strengthened** - Scripts now use nonces instead of 'unsafe-inline' (lines 566-580)
    - Nonces generated per request via context processor
    - Only `style-src` still uses 'unsafe-inline' (acceptable for CSS)
-   
+
 2. **Default HTTPS_ONLY to true:**
    ```python
    HTTPS_ONLY = os.getenv("HTTPS_ONLY", "true").lower() == "true"

@@ -94,4 +94,3 @@ pre-commit autoupdate
 ```
 
 Then commit the updated `.pre-commit-config.yaml` file.
-
