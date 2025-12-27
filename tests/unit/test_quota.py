@@ -71,8 +71,6 @@ async def test_quota_expired(test_db):
     assert result is False
     # Verify that the record has been deleted.
     async with aiosqlite.connect(test_db, detect_types=sqlite3.PARSE_DECLTYPES) as db:
-        async with db.execute(
-            "SELECT * FROM ip_usage WHERE ip=?", (ip_hash,)
-        ) as cursor:
+        async with db.execute("SELECT * FROM ip_usage WHERE ip=?", (ip_hash,)) as cursor:
             row = await cursor.fetchone()
     assert row is None

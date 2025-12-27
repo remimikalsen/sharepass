@@ -35,6 +35,38 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: pip-audit
+        name: pip-audit - Python dependency vulnerability scanner
+        entry: bash
+        language: system
+        pass_filenames: false
+        args:
+          - -c
+          - |
+            echo "Running pip-audit to check Python dependencies..."
+            pip install pip-audit
+            pip-audit --requirement requirements.txt --format table || {
+              echo
+              echo "❌ pip-audit found vulnerabilities in Python dependencies."
+              exit 1
+            }
+
+      - id: bandit
+        name: bandit - Python security linter
+        entry: bash
+        language: system
+        pass_filenames: false
+        args:
+          - -c
+          - |
+            echo "Running bandit for Python code security analysis..."
+            pip install bandit[toml]
+            bandit -r app/ -f screen || {
+              echo
+              echo "❌ bandit found security issues in Python code."
+              exit 1
+            }
+
   # Python code quality
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -55,4 +87,3 @@ repos:
       - id: black
         language_version: python3
         args: ['--line-length=100']
-

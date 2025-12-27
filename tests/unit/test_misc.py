@@ -22,12 +22,8 @@ async def test_init_db(tmp_path, monkeypatch):
     await init_db()
 
     # Connect to the database and verify that both tables exist.
-    async with aiosqlite.connect(
-        str(db_file), detect_types=sqlite3.PARSE_DECLTYPES
-    ) as db:
-        async with db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ) as cursor:
+    async with aiosqlite.connect(str(db_file), detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        async with db.execute("SELECT name FROM sqlite_master WHERE type='table'") as cursor:
             rows = await cursor.fetchall()
             tables = {row[0] for row in rows}
     assert "secrets" in tables, "Table 'secrets' was not created."
@@ -54,9 +50,7 @@ async def test_handle_404():
     # Create a dummy Jinja2 environment with a minimal 404 template.
     # The goal of this test is to verify that the 404 handler renders a template and returns the correct status code.
     env = jinja2.Environment(
-        loader=jinja2.DictLoader(
-            {"404.html": "<html><body>404 Not Found</body></html>"}
-        )
+        loader=jinja2.DictLoader({"404.html": "<html><body>404 Not Found</body></html>"})
     )
 
     # Create a dummy request that mimics what aiohttp_jinja2.setup() would provide.
@@ -73,6 +67,4 @@ async def test_handle_404():
     response = await handle_404(request)
     assert response.status == 404, f"Expected status 404 but got {response.status}"
     # Check that the rendered text includes content from our dummy 404 template.
-    assert (
-        "404 Not Found" in response.text
-    ), "Rendered 404 page does not contain expected text."
+    assert "404 Not Found" in response.text, "Rendered 404 page does not contain expected text."

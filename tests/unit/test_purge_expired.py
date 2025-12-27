@@ -39,13 +39,9 @@ async def test_purge_expired(test_db):
 
     # Verify that the expired secret is removed.
     async with aiosqlite.connect(test_db, detect_types=sqlite3.PARSE_DECLTYPES) as db:
-        async with db.execute(
-            "SELECT * FROM secrets WHERE id=?", ("expired_secret",)
-        ) as cursor:
+        async with db.execute("SELECT * FROM secrets WHERE id=?", ("expired_secret",)) as cursor:
             secret_row = await cursor.fetchone()
-        async with db.execute(
-            "SELECT * FROM ip_usage WHERE ip=?", ("expired_ip",)
-        ) as cursor:
+        async with db.execute("SELECT * FROM ip_usage WHERE ip=?", ("expired_ip",)) as cursor:
             ip_row = await cursor.fetchone()
 
     assert secret_row is None, "Expired secret was not purged."

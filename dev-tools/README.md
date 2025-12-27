@@ -121,4 +121,3 @@ Security scans are automatically run in CI:
 - **Build Workflow** (`.github/workflows/build.yaml`): Runs before pushing images to GHCR
 
 Images with high or critical vulnerabilities will **not** be pushed to GHCR.
-

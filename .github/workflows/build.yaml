@@ -83,7 +83,7 @@ jobs:
           else
             echo "TRUE_SHA=$GITHUB_SHA" >> $GITHUB_OUTPUT
           fi
-            
+
       - name: Get PR metadata
         uses: 8BitJonny/gh-get-current-pr@3.0.0
         id: pr_meta
@@ -173,7 +173,7 @@ jobs:
           fi
 
           git push origin main
-          
+
       - name: Setup Node.js for npm audit
         uses: actions/setup-node@v6
         with:
@@ -223,18 +223,18 @@ jobs:
         run: |
           # Install jq for JSON parsing
           sudo apt-get update && sudo apt-get install -y jq
-          
+
           # Count vulnerabilities from JSON output
           CRITICAL_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-results.json 2>/dev/null || echo "0")
-          
+
           echo "Critical vulnerabilities: $CRITICAL_COUNT"
-          
+
           # Display summary using Trivy action output
           if [ -f trivy-results.json ]; then
             echo "=== Vulnerability Summary ==="
             jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | "\(.Severity): \(.VulnerabilityID) - \(.Title)"' trivy-results.json 2>/dev/null || echo "No critical vulnerabilities found in JSON"
           fi
-          
+
           if [ "$CRITICAL_COUNT" -gt 0 ]; then
             echo "::error::Found $CRITICAL_COUNT critical severity vulnerabilities. Image will not be pushed to GHCR."
             echo "VULN_FOUND=true" >> $GITHUB_ENV
@@ -249,10 +249,10 @@ jobs:
         run: |
           # Generate SBOM in CycloneDX format (industry standard)
           trivy image --format cyclonedx --output sbom-cyclonedx.json credshare:build
-          
+
           # Also generate SPDX format for compatibility
           trivy image --format spdx-json --output sbom-spdx.json credshare:build
-          
+
           echo "SBOM files generated:"
           ls -lh sbom-*.json
 
@@ -295,7 +295,7 @@ jobs:
           # Create and push the new tag
           git tag "$VERSION" -m "ci: release version $VERSION"
           git push origin "$VERSION"
-        
+
       - name: Check if PR was squashed
         id: check_squash
         env:
@@ -309,9 +309,9 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER/commits" | \
             python3 -c "import sys, json; print(len(json.load(sys.stdin)))")
-          
+
           echo "Commit count: $PR_COMMITS"
-      
+
           # If there's only one commit, assume it's a squash merge
           if [[ "$PR_COMMITS" -eq 1 ]]; then
             echo "SQUASH_MERGE=true" >> $GITHUB_ENV
@@ -333,7 +333,7 @@ jobs:
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: token $GITHUB_TOKEN" \
               "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER/commits")
-      
+
             echo "$response" \
               | python3 -c "import sys, json; d = json.load(sys.stdin)[0]; print(f\"{d['commit']['message']} ({d['sha'][:7]})\")" \
               > commits.txt
