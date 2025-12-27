@@ -102,7 +102,7 @@ services:
     ...
     container_name: sharepass
     # image: ghcr.io/remimikalsen/credshare:v1
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.sharepass
     ...
@@ -271,7 +271,7 @@ Set up a Python virtual environment for local development to manage Python packa
 
   ```sh
   pip-compile --upgrade requirements.in
-  pip install -r requirements.txt  
+  pip install -r requirements.txt
   pip-sync requirements.txt
   ```
 
@@ -281,7 +281,7 @@ Npm is used to manage packages and webpack to bundle a minimal hightlight packag
 
 To upgrade npm packages (although, the latest versions are automatically installed on each docker build):
 
-Safe updates: 
+Safe updates:
 
 ```sh
 npm update

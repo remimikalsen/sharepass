@@ -26,9 +26,7 @@ if os.path.isfile(VERSION_FILE_PATH):
     with open(VERSION_FILE_PATH, "r") as version_file:
         VERSION = version_file.read().strip() or "unknown"
 else:
-    parent_dir_version_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "VERSION"
-    )
+    parent_dir_version_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "VERSION")
     if os.path.isfile(parent_dir_version_path):
         with open(parent_dir_version_path, "r") as version_file:
             VERSION = version_file.read().strip() + "-development"
@@ -77,17 +75,23 @@ sqlite3.register_converter("DATETIME", convert_datetime)
 
 
 # --- Context Processor for Templates ---
-async def version_context_processor(_):
-    return {"VERSION": VERSION, "ANALYTICS_SCRIPT": ANALYTICS_SCRIPT}
+async def version_context_processor(request):
+    # Generate a nonce for CSP (Content Security Policy)
+    nonce = secrets.token_urlsafe(16)
+    # Store nonce in request for use in middleware (aiohttp requests support dict-like access)
+    try:
+        request["csp_nonce"] = nonce
+    except (TypeError, AttributeError):
+        # Fallback for requests that don't support dict-like access (shouldn't happen with aiohttp)
+        pass
+    return {"VERSION": VERSION, "ANALYTICS_SCRIPT": ANALYTICS_SCRIPT, "CSP_NONCE": nonce}
 
 
 # --- Helper Functions ---
 
 
 async def init_db():
-    async with aiosqlite.connect(
-        DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
-    ) as db:
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS secrets (
@@ -127,12 +131,8 @@ def get_client_ip(request):
 
 async def ip_reached_quota(ip):
     """Check the IP usage and reset if the quota renewal period has passed."""
-    async with aiosqlite.connect(
-        DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
-    ) as db:
-        async with db.execute(
-            "SELECT uses, last_access FROM ip_usage WHERE ip=?", (ip,)
-        ) as cursor:
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        async with db.execute("SELECT uses, last_access FROM ip_usage WHERE ip=?", (ip,)) as cursor:
             row = await cursor.fetchone()
         current_time = datetime.now()
         if row:
@@ -168,7 +168,7 @@ def validate_download_code(code):
 def validate_json_content_type(request):
     """Validate that request has correct Content-Type header for JSON."""
     # Handle cases where headers might not exist or might be None
-    if not hasattr(request, 'headers') or request.headers is None:
+    if not hasattr(request, "headers") or request.headers is None:
         return False
     content_type = request.headers.get("Content-Type", "")
     # Check for application/json (allow charset parameter)
@@ -187,9 +187,7 @@ async def index(request):
         "secret_expiry_minutes": secret_expiry_minutes,
         "max_attempts": MAX_ATTEMPTS,
     }
-    return aiohttp_jinja2.render_template(
-        "index.html", request, context, app_key=APP_KEY
-    )
+    return aiohttp_jinja2.render_template("index.html", request, context, app_key=APP_KEY)
 
 
 async def store_secret(encrypted_secret, ip):
@@ -201,9 +199,7 @@ async def store_secret(encrypted_secret, ip):
     download_code = generate_download_code()
     upload_time = datetime.now()
 
-    async with aiosqlite.connect(
-        DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
-    ) as db:
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
         await db.execute(
             "INSERT INTO secrets (id, secret, attempts, download_code, upload_time) VALUES (?, ?, ?, ?, ?)",
             (secret_id, encrypted_secret, 0, download_code, upload_time),
@@ -255,9 +251,7 @@ async def unlock_secret_landing(request):
         response.set_status(404)
         return response
 
-    async with aiosqlite.connect(
-        DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
-    ) as db:
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
         async with db.execute(
             "SELECT secret FROM secrets WHERE download_code=?", (download_code,)
         ) as cursor:
@@ -286,9 +280,7 @@ async def unlock_secret_landing(request):
             "max_attempts": MAX_ATTEMPTS,
             "base_url": base_url,
         }
-        return aiohttp_jinja2.render_template(
-            "download.html", request, context, app_key=APP_KEY
-        )
+        return aiohttp_jinja2.render_template("download.html", request, context, app_key=APP_KEY)
 
     response = aiohttp_jinja2.render_template("404.html", request, {}, app_key=APP_KEY)
     response.set_status(404)
@@ -311,11 +303,12 @@ async def unlock_secret_logic(download_code, key):
 
     # Validate key length
     if not isinstance(key, str) or len(key) > MAX_KEY_LENGTH:
-        return False, {"error": f"Key too long. Maximum length is {MAX_KEY_LENGTH} characters.", "status": 400}
+        return False, {
+            "error": f"Key too long. Maximum length is {MAX_KEY_LENGTH} characters.",
+            "status": 400,
+        }
 
-    async with aiosqlite.connect(
-        DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
-    ) as db:
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
         async with db.execute(
             "SELECT secret, attempts FROM secrets WHERE download_code=?",
             (download_code,),
@@ -349,9 +342,7 @@ async def unlock_secret_logic(download_code, key):
             # Increase the failure count.
             attempts += 1
             if attempts >= MAX_ATTEMPTS:
-                await db.execute(
-                    "DELETE FROM secrets WHERE download_code=?", (download_code,)
-                )
+                await db.execute("DELETE FROM secrets WHERE download_code=?", (download_code,))
                 await db.commit()
                 return False, {
                     "error": "Incorrect key. Maximum attempts reached. Secret deleted.",
@@ -489,12 +480,8 @@ async def check_limit(request):
     current_time = datetime.now()
     next_quota_renewal = timedelta(minutes=QUOTA_RENEWAL_MINUTES)
 
-    async with aiosqlite.connect(
-        DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
-    ) as db:
-        async with db.execute(
-            "SELECT uses, last_access FROM ip_usage WHERE ip=?", (ip,)
-        ) as cursor:
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        async with db.execute("SELECT uses, last_access FROM ip_usage WHERE ip=?", (ip,)) as cursor:
             row = await cursor.fetchone()
         if row:
             uses, last_access = row
@@ -510,9 +497,7 @@ async def check_limit(request):
                 "limit_reached": True,
                 "quota_left": quota_left,
                 "quota_renewal_hours": int(next_quota_renewal.total_seconds() // 3600),
-                "quota_renewal_minutes": int(
-                    (next_quota_renewal.total_seconds() % 3600) // 60
-                ),
+                "quota_renewal_minutes": int((next_quota_renewal.total_seconds() % 3600) // 60),
             }
         )
     else:
@@ -521,9 +506,7 @@ async def check_limit(request):
                 "limit_reached": False,
                 "quota_left": quota_left,
                 "quota_renewal_hours": int(next_quota_renewal.total_seconds() // 3600),
-                "quota_renewal_minutes": int(
-                    (next_quota_renewal.total_seconds() % 3600) // 60
-                ),
+                "quota_renewal_minutes": int((next_quota_renewal.total_seconds() % 3600) // 60),
             }
         )
 
@@ -534,9 +517,7 @@ async def time_left(request):
     if not validate_download_code(download_code):
         return web.json_response({"message": "Invalid download code format."}, status=400)
 
-    async with aiosqlite.connect(
-        DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
-    ) as db:
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
         async with db.execute(
             "SELECT upload_time FROM secrets WHERE download_code=?", (download_code,)
         ) as cursor:
@@ -557,9 +538,7 @@ async def time_left(request):
                 }
             )
         else:
-            return web.json_response(
-                {"message": "The secret has already expired."}, status=410
-            )
+            return web.json_response({"message": "The secret has already expired."}, status=410)
     else:
         return web.json_response({"message": "Download code not found."}, status=404)
 
@@ -567,9 +546,7 @@ async def time_left(request):
 async def purge_expired():
     """Delete secrets older than the expiry time and clean up the ip_usage table."""
     expiry_time = datetime.now() - timedelta(minutes=SECRET_EXPIRY_MINUTES)
-    async with aiosqlite.connect(
-        DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
-    ) as db:
+    async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
         await db.execute("DELETE FROM secrets WHERE upload_time < ?", (expiry_time,))
         cutoff_time = datetime.now() - timedelta(minutes=QUOTA_RENEWAL_MINUTES)
         await db.execute("DELETE FROM ip_usage WHERE last_access < ?", (cutoff_time,))
@@ -582,15 +559,50 @@ async def purge_expired():
 @web.middleware
 async def security_headers_middleware(request, handler):
     response = await handler(request)
-    # Set Content Security Policy
-    csp = (
-        "default-src 'self' {analytics_script_csp}; "
-        "script-src 'self' 'unsafe-inline' {analytics_script_csp}; "
-        "style-src 'self' 'unsafe-inline'; "
-        "font-src 'self'; "
-        "img-src 'self' data:;"
-    ).format(analytics_script_csp=ANALYTICS_SCRIPT_CSP)
+
+    # Get nonce from request (set by context processor)
+    nonce = request.get("csp_nonce", "")
+
+    # Set Content Security Policy with nonce instead of unsafe-inline for scripts
+    # Note: style-src still uses unsafe-inline as it's less critical and harder to fix
+    script_src_parts = ["'self'"]
+    if nonce:
+        script_src_parts.append(f"'nonce-{nonce}'")
+    if ANALYTICS_SCRIPT_CSP:
+        script_src_parts.append(ANALYTICS_SCRIPT_CSP)
+
+    default_src_parts = ["'self'"]
+    if ANALYTICS_SCRIPT_CSP:
+        default_src_parts.append(ANALYTICS_SCRIPT_CSP)
+
+    csp_parts = [
+        f"default-src {' '.join(default_src_parts)}",
+        f"script-src {' '.join(script_src_parts)}",
+        "style-src 'self' 'unsafe-inline'",
+        "font-src 'self'",
+        "img-src 'self' data:",
+    ]
+    csp = "; ".join(csp_parts) + ";"
     response.headers["Content-Security-Policy"] = csp
+
+    # Add Permissions-Policy header to restrict dangerous features
+    permissions_policy = (
+        "geolocation=(), "
+        "microphone=(), "
+        "camera=(), "
+        "payment=(), "
+        "usb=(), "
+        "magnetometer=(), "
+        "gyroscope=(), "
+        "accelerometer=(), "
+        "ambient-light-sensor=(), "
+        "autoplay=(), "
+        "encrypted-media=(), "
+        "fullscreen=(self), "
+        "picture-in-picture=()"
+    )
+    response.headers["Permissions-Policy"] = permissions_policy
+
     # Prevent MIME type sniffing
     response.headers["X-Content-Type-Options"] = "nosniff"
     # Prevent clickjacking
@@ -652,4 +664,5 @@ if __name__ == "__main__":
     import asyncio
 
     app = asyncio.run(create_app())
-    web.run_app(app, host="0.0.0.0", port=8080)
+    # Binding to 0.0.0.0 is required for container deployment
+    web.run_app(app, host="0.0.0.0", port=8080)  # nosec B104

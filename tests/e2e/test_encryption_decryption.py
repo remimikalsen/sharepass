@@ -126,6 +126,4 @@ def test_secret_sharing_flow(page: Page, base_url: str):
     page.wait_for_timeout(3000)
     response = page.goto(landing_url, timeout=5000)
     # Check for a 404 status.
-    assert (
-        response.status == 404
-    ), f"Expected status 404 after unlocking, got {response.status}."
+    assert response.status == 404, f"Expected status 404 after unlocking, got {response.status}."

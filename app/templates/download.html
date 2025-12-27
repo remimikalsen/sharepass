@@ -18,7 +18,7 @@
         <input id="key" type="text" name="key" placeholder="Unlock me...">
         <p id="download-key-error"></p>
       </label>
-      <button id="unlock-button" onclick="unlockSecret()">Unlock!</button>
+      <button id="unlock-button">Unlock!</button>
       <p id="time-left"></p>
     </div>
     <div id="cli-note" class="cli-hint">
@@ -28,7 +28,7 @@
       </div>
     </div>
   </div>
-  
+
   <div id="secret-unlocked-container" style="display:none;">
     <h2>Secret unlocked!</h2>
     <div id="secret-display">
@@ -44,11 +44,11 @@
       </p>
     </div>
   </div>
-  
+
   <div class="to-home">
     <span class="link-back-span">[ <a href="/" class="success-link-back">Share a secret with CredShare.app</a> ]</span>
   </div>
-  
+
   <!-- Notification element for link copying -->
   <div id="link-copy-notification" style="display: none;"></div>
 {% endblock %}
@@ -56,11 +56,11 @@
 {% block extra_scripts %}
   <script src="/static/js/highlight.bundle.min.js"></script>
   <script src="/static/js/feather.min.js"></script>
-  <script>
+  <script nonce="{{ CSP_NONCE }}">
     let timerId;
     feather.replace();
     const linkCopyNotification = document.getElementById('link-copy-notification');
-    
+
     // Update curl command base URL to match current page protocol (https preferred)
     (function() {
       const curlBaseUrlEl = document.getElementById('curl-base-url');
@@ -80,17 +80,17 @@
       const unlockAreaContainer = document.getElementById('unlock-area-container');
       const unlockedMessageContainer = document.getElementById('secret-unlocked-container');
       const errorMessage = document.getElementById('download-key-error');
-      
+
       // Clear any previous messages.
       errorMessage.innerText = '';
       errorMessage.style.display = 'none';
-      
+
       if (!key) {
         errorMessage.innerText = "Please enter an encryption key.";
         errorMessage.style.display = 'block';
         return;
       }
-      
+
       try {
         const response = await fetch('/unlock_secret', {
           method: 'POST',
@@ -102,9 +102,9 @@
             key: key
           })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
           // Decryption succeeded.
           unlockAreaContainer.style.display = 'none';
@@ -116,7 +116,7 @@
           const highlighted = hljs.highlightAuto(result.secret);
           secretCodeBlock.className = highlighted.language ? `language-${highlighted.language}` : '';
           secretCodeBlock.innerHTML = highlighted.value;
-          
+
           document.getElementById('secret-unlocked-container').style.display = 'block';
 
           document.getElementById('copy-secret').addEventListener('click', function() {
@@ -134,7 +134,7 @@
             feather.replace();
             codeContainer.classList.toggle('visible');
           });
-          
+
         } else {
           // Decryption failed.
           errorMessage.style.display = 'block';
@@ -151,7 +151,7 @@
       }
     }
 
-    
+
     function copyToClipboard(text) {
       navigator.clipboard.writeText(text)
         .then(() => {
@@ -161,7 +161,7 @@
           console.error('Error copying text: ', err);
         });
     }
-    
+
     function showLinkCopyNotification(message) {
       linkCopyNotification.innerText = message;
       linkCopyNotification.style.display = 'block';
@@ -202,12 +202,15 @@
         clearInterval(timerId);
       }
     }
-    
+
     function startTimer() {
       fetchTimeLeft();
       timerId = setInterval(fetchTimeLeft, 60000);
     }
-    
+
     window.onload = startTimer;
+
+    // Add event listener for unlock button
+    document.getElementById('unlock-button').addEventListener('click', unlockSecret);
   </script>
 {% endblock %}

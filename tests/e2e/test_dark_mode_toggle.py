@@ -28,9 +28,7 @@ def test_dark_mode_toggle(page: Page, base_url: str):
 
     # Verify that localStorage theme is now "dark".
     new_theme = page.evaluate("() => localStorage.getItem('theme')")
-    assert (
-        new_theme == "dark"
-    ), f"Expected localStorage theme to be 'dark', got '{new_theme}'"
+    assert new_theme == "dark", f"Expected localStorage theme to be 'dark', got '{new_theme}'"
 
     # Check that the body now has the 'dark' class.
     body_has_dark = page.evaluate("() => document.body.classList.contains('dark')")
@@ -51,9 +49,7 @@ def test_dark_mode_toggle(page: Page, base_url: str):
 
     # Verify that the body no longer has the 'dark' class.
     body_has_dark = page.evaluate("() => document.body.classList.contains('dark')")
-    assert (
-        not body_has_dark
-    ), "Expected body not to have 'dark' class after second toggle"
+    assert not body_has_dark, "Expected body not to have 'dark' class after second toggle"
 
     # Verify that the toggle button text reverts to moon icon (🌙).
     toggle_text = page.inner_text("#theme-toggle")

@@ -14,7 +14,7 @@
               The encryption key
               <input id="key" type="text" name="key" placeholder="How you unlock it...">
           </label>
-          <button id="upload-button" onclick="uploadSecret()">Share it!</button>
+          <button id="upload-button">Share it!</button>
       </div>
       <p class="secret-upload-helptext">
           Your secret will be encrypted with the encryption key you provide, and you will get a link you can use to share the secret safely.
@@ -24,7 +24,7 @@
       </p>
       <div id="loading-overlay">
           <img src="/static/spinner.gif" alt="Loading...">
-      </div>            
+      </div>
   </div>
 
   <div id="status-wrapper">
@@ -38,7 +38,7 @@
 
 {% block extra_scripts %}
   <script src="/static/js/feather.min.js"></script>
-  <script>
+  <script nonce="{{ CSP_NONCE }}">
       feather.replace();
       const secretContainer = document.getElementById('secret-container');
       const loadingOverlay = document.getElementById('loading-overlay');
@@ -118,7 +118,7 @@
               showError('Please enter a secret and a key.');
               return;
           }
-          
+
           showLoading();
 
           try {
@@ -213,6 +213,9 @@
               }, 500);
           }, 3000);
       }
+
+      // Add event listener for upload button
+      document.getElementById('upload-button').addEventListener('click', uploadSecret);
 
       window.addEventListener('load', () => {
           fetch('/check-limit')

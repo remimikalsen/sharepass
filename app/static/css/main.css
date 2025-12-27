@@ -13,7 +13,7 @@
     --link-color: #007acc;
     --input-bg: #fff;
   }
-  
+
   body.dark {
     --bg-color: #121212;
     --text-color: #e0e0e0;
@@ -26,7 +26,7 @@
     --link-color: #66bb6a;
     --input-bg: #302f2f;
   }
-  
+
   body {
     font-family: 'Roboto', Arial, sans-serif;
     background-color: var(--bg-color);
@@ -38,7 +38,7 @@
     min-height: 100vh;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
-  
+
   .no-transition * {
     transition: none !important;
   }
@@ -55,18 +55,18 @@
     flex-direction: column;
     align-items: center;
   }
-  
+
   header h1 {
     color: var(--primary-color);
     font-size: 2.3em;
     margin-bottom: 0;
   }
-  
+
   p.header {
     margin-top: 6px;
     color: var(--secondary-color);
   }
-  
+
   /* Dark Mode Toggle Button */
   button#theme-toggle {
     position: absolute;
@@ -79,14 +79,14 @@
     background-color: var(--header-bg);
     color: var(--primary-color);
   }
-  
+
   @media (max-width: 600px) {
     button#theme-toggle {
       position: static;
       margin-top: 10px;
     }
   }
-  
+
   /* ===========================================================
      Main Content Area
      =========================================================== */
@@ -99,26 +99,26 @@
     padding: 20px;
     transition: padding 0.3s ease;
   }
-  
+
   @media (max-width: 600px) {
     main {
       padding: 10px;
     }
   }
-  
+
   /* ===========================================================
      Typography & Links
      =========================================================== */
   p {
     font-size: 1.2em;
   }
-  
+
   a.logo-link {
     text-decoration: none;
     color: var(--primary-color);
     cursor: pointer;
   }
-  
+
   /* Headings */
   h2 {
     color: var(--text-color);
@@ -127,7 +127,7 @@
     font-weight: bold;
     margin-bottom: 20px;
   }
-  
+
   h3 {
     color: var(--text-color);
     text-align: center;
@@ -135,7 +135,7 @@
     font-weight: bold;
     margin-bottom: 20px;
   }
-  
+
   /* Quota Info */
   p.quota-info {
     margin: 10px;
@@ -144,7 +144,7 @@
     text-align: center;
     font-weight: bold;
   }
-  
+
   /* ===========================================================
      Footer
      =========================================================== */
@@ -152,18 +152,18 @@
     padding: 20px;
     background-color: var(--footer-bg);
   }
-  
+
   footer p {
     text-align: center;
     margin: 10px;
     color: var(--text-color);
   }
-  
+
   footer a {
     text-decoration: none;
     color: var(--link-color);
   }
-  
+
   /* ===========================================================
      Secret Display & Unlock Areas
      =========================================================== */
@@ -180,23 +180,23 @@
     transition: background-color 0.3s ease;
     position: relative;
   }
-  
+
   #secret-container.disabled {
     background-color: var(--bg-color);
     border: none;
     cursor: default;
   }
-  
+
   /* Secret Content (blurred until unlocked) */
   #secret-code {
     filter: blur(8px);
     transition: filter 0.3s;
   }
-  
+
   #secret-code.visible {
     filter: none;
   }
-  
+
   /* Preformatted Secret Display */
   #secret-display pre {
     max-height: 400px;
@@ -213,7 +213,7 @@
     background-color: var(--bg-color);
     color: var(--text-color);
   }
-  
+
   /* Input & Label Styles for Unlock Areas */
   #unlock-area label,
   #secret-container label {
@@ -225,7 +225,7 @@
     max-width: 90%;
     margin: 30px auto;
   }
-  
+
   #unlock-area input,
   #secret-container input {
     font-family: inherit;
@@ -239,7 +239,7 @@
     background-color: var(--input-bg);
     color: var(--text-color);
   }
-  
+
   /* Button Styles in Secret Areas */
   #secret-display button,
   #unlock-area button,
@@ -259,22 +259,22 @@
     gap: 10px;
     width: 200px;
   }
-  
+
   #secret-display button {
     margin: 10px auto;
   }
-  
+
   #secret-display span.material-icons {
     font-size: 1rem;
     padding: 2px;
   }
-  
+
   #secret-display button:hover,
   #unlock-area button:hover,
   #secret-container button:hover {
     background-color: var(--secondary-color);
   }
-  
+
   /* Textarea for Secret Input */
   textarea {
     font-family: inherit;
@@ -289,13 +289,13 @@
     background-color: var(--input-bg);
     color: var(--text-color);
   }
-  
+
   /* Paragraphs within Unlock Areas */
   #unlock-area p,
   #secret-container p {
     color: var(--text-color);
   }
-  
+
   /* ===========================================================
      Success & Status Messages
      =========================================================== */
@@ -304,26 +304,26 @@
     color: var(--secondary-color);
     text-decoration: none;
   }
-  
+
   .success-link-back:hover,
   .success-link:hover {
     text-decoration: underline;
   }
-  
+
   #status-wrapper {
     display: none;
   }
-  
+
   .success-content {
     padding: 0 20px;
     border-radius: 5px;
     text-align: center;
   }
-  
+
   .success-content .sharing-link {
     display: block;
   }
-  
+
   .success-content .sharing-link a {
     font-size: 1.5rem;
     display: inline-block;
@@ -332,33 +332,33 @@
     word-break: break-word;
     white-space: normal;
   }
-  
+
   #status-wrapper,
   .success-content {
     max-width: 100%;
     box-sizing: border-box;
   }
-  
+
   .success-link {
     font-weight: normal;
   }
-  
+
   .link-back-span {
     display: block;
     margin: 35px 0 20px;
   }
-  
+
   .success-span-direct {
     display: block;
     font-size: 0.8em;
   }
-  
+
   .success-span-share {
     font-weight: normal;
     display: block;
     margin: 10px;
   }
-  
+
   .success-button {
     background-color: var(--primary-color);
     color: #fff;
@@ -371,34 +371,34 @@
     align-items: center;
     justify-content: center;
   }
-  
+
   .success-button .material-icons {
     font-size: 1.5em;
     margin: 0;
   }
-  
+
   .success-button:hover {
     background-color: var(--secondary-color);
   }
-  
+
   #success-message,
   #error-message {
     font-size: 1.2em;
     margin-top: 20px;
     transition: opacity 0.5s ease;
   }
-  
+
   #error-message {
     color: #a80000;
   }
-  
+
   /* Logo Image */
   img.snapfile-logo {
     width: 24px;
     vertical-align: middle;
     margin-right: 10px;
   }
-  
+
   /* ===========================================================
      Notifications & Overlays
      =========================================================== */
@@ -414,22 +414,22 @@
     transition: opacity 0.5s ease-in-out;
     z-index: 1000;
   }
-  
+
   div.to-home {
     margin-bottom: 30px;
   }
-  
+
   /* Container & Loading Overlay */
   .container {
     position: relative;
     transition: opacity 0.5s ease;
   }
-  
+
   .container.greyed {
     opacity: 0.5;
     pointer-events: none;
   }
-  
+
   #loading-overlay {
     position: absolute;
     top: 0;
@@ -444,21 +444,21 @@
     transition: opacity 0.5s ease;
     pointer-events: none;
   }
-  
+
   #loading-overlay.visible {
     opacity: 1;
   }
-  
+
   /* Fade-in Animation */
   .fade-in {
     animation: fadeIn 0.5s forwards;
   }
-  
+
   @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
   }
-  
+
   /* ===========================================================
      Additional Utility Styles
      =========================================================== */
@@ -466,20 +466,20 @@
     font-size: 1.3rem;
     color: #339136;
   }
-  
+
   #unlock-area #download-key-error {
     color: #a80000;
     display: none;
   }
-  
+
   p.sharing-hint {
     font-size: 80%;
   }
-  
+
   #secret-unlocked-container {
     display: none;
   }
-  
+
   /* CLI Hint Section */
   #cli-note.cli-hint {
     margin-top: 20px;
@@ -494,17 +494,17 @@
     transition: background-color 0.3s ease;
     box-sizing: border-box;
   }
-  
+
   #cli-note.cli-hint p {
     margin: 0 0 10px 0;
     color: var(--text-color);
   }
-  
+
   #cli-note.cli-hint .cli-command {
     margin-top: 10px;
     text-align: left;
   }
-  
+
   #cli-note.cli-hint code {
     display: block;
     padding: 10px;
@@ -517,10 +517,9 @@
     white-space: pre-wrap;
     box-sizing: border-box;
   }
-  
+
   /* SVG Icons */
   svg.feather {
     width: 24px;
     height: 24px;
   }
-  

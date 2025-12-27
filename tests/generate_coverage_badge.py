@@ -3,6 +3,7 @@ import sys
 
 import xml.etree.ElementTree as ET
 
+
 def get_coverage_percentage(xml_path):
     """Parses the coverage XML and returns the integer percentage."""
     try:
@@ -16,9 +17,10 @@ def get_coverage_percentage(xml_path):
         sys.exit(f"Error reading line-rate from XML: {e}")
     return int(round(line_rate * 100))
 
+
 def generate_badge_svg(coverage):
     """Generates an SVG badge string with the given coverage percentage."""
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
   <linearGradient id="a" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
     <stop offset="1" stop-opacity=".1"/>
@@ -31,7 +33,8 @@ def generate_badge_svg(coverage):
     <text x="35" y="14">coverage</text>
     <text x="95" y="14">{coverage}%</text>
   </g>
-</svg>'''
+</svg>"""
+
 
 def main():
     # Default paths
@@ -42,8 +45,8 @@ def main():
     args = sys.argv[1:]
     if len(args) > 1:
         sys.exit(f"Usage: {sys.argv[0]} [print]")
-    
-    print_badge = (len(args) == 1 and args[0] == "print")
+
+    print_badge = len(args) == 1 and args[0] == "print"
     if len(args) == 1 and args[0] != "print":
         sys.exit(f"Usage: {sys.argv[0]} [print]")
 
@@ -51,11 +54,12 @@ def main():
     svg = generate_badge_svg(coverage)
 
     if print_badge:
-        print(svg, end='')
+        print(svg, end="")
     else:
         # Write the SVG badge to file. If the file exists and content is identical, it will be overwritten.
-        with open(badge_file, 'w') as f:
+        with open(badge_file, "w") as f:
             f.write(svg)
+
 
 if __name__ == "__main__":
     main()

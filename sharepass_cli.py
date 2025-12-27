@@ -21,18 +21,18 @@ def encrypt_secret(secret: str, key: str) -> str:
     """
     Encrypt a secret using AES-GCM with PBKDF2 key derivation.
     Matches the encryption format used by the web interface.
-    
+
     Args:
         secret: The plaintext secret to encrypt
         key: The encryption key/password
-        
+
     Returns:
         JSON string containing encrypted data (salt, iv, ciphertext)
     """
     # Generate random salt and IV
     salt = os.urandom(16)
     iv = os.urandom(12)
-    
+
     # Derive AES key from password using PBKDF2
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -42,18 +42,18 @@ def encrypt_secret(secret: str, key: str) -> str:
         backend=default_backend(),
     )
     aes_key = kdf.derive(key.encode())
-    
+
     # Encrypt the secret
     aesgcm = AESGCM(aes_key)
     ciphertext = aesgcm.encrypt(iv, secret.encode(), None)
-    
+
     # Encode as base64 and return as JSON
     encrypted_data = {
         "salt": base64.b64encode(salt).decode("utf-8"),
         "iv": base64.b64encode(iv).decode("utf-8"),
         "ciphertext": base64.b64encode(ciphertext).decode("utf-8"),
     }
-    
+
     return json.dumps(encrypted_data)
 
 
@@ -67,9 +67,7 @@ def main():
         nargs="?",
         default=None,
     )
-    parser.add_argument(
-        "-k", "--key", required=True, help="Encryption key/password"
-    )
+    parser.add_argument("-k", "--key", required=True, help="Encryption key/password")
     parser.add_argument(
         "-o",
         "--output",
@@ -83,26 +81,26 @@ def main():
         default="http://localhost:8080",
         help="Base URL of the sharepass server (default: http://localhost:8080)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Read secret from stdin if '-' or not provided
     if args.secret == "-" or args.secret is None:
         secret = sys.stdin.read().rstrip("\n")
     else:
         secret = args.secret
-    
+
     if not secret:
         print("Error: Secret cannot be empty", file=sys.stderr)
         sys.exit(1)
-    
+
     # Encrypt the secret
     try:
         encrypted_data = encrypt_secret(secret, args.key)
     except Exception as e:
         print(f"Error encrypting secret: {e}", file=sys.stderr)
         sys.exit(1)
-    
+
     # Output based on format
     if args.output == "json":
         print(encrypted_data)
@@ -118,9 +116,8 @@ def main():
         print("# To retrieve the secret:")
         print("# curl -X POST http://localhost:8080/api/unlock \\")
         print("#   -H 'Content-Type: application/json' \\")
-        print("#   -d '{\"download_code\": \"<CODE>\", \"key\": \"<KEY>\"}'")
+        print('#   -d \'{"download_code": "<CODE>", "key": "<KEY>"}\'')
 
 
 if __name__ == "__main__":
     main()
-

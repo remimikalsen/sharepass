@@ -56,21 +56,21 @@ jobs:
           docker run --rm sharepass-tests test-unit > docker_output.txt 2>&1
           EXIT_CODE=$?
           set -e
-      
+
           # Extract and print the pytest output
           PYTEST_OUTPUT=$(awk '/-----BEGIN PYTEST OUTPUT-----/{flag=1; next} /-----END PYTEST OUTPUT-----/{flag=0} flag' docker_output.txt)
           echo "-----BEGIN PYTEST OUTPUT-----"
           echo "$PYTEST_OUTPUT"
           echo "-----END PYTEST OUTPUT-----"
-      
+
           # Extract the badge SVG and store it as coverage-badge.svg
           awk '/-----BEGIN BADGE SVG-----/{flag=1; next} /-----END BADGE SVG-----/{flag=0} flag' docker_output.txt > coverage-badge.svg
-      
+
           # Extract the coverage XML and store it as coverage.xml
           awk '/-----BEGIN COVERAGE XML-----/{flag=1; next} /-----END COVERAGE XML-----/{flag=0} flag' docker_output.txt > coverage.xml
-      
+
           exit $EXIT_CODE
-        
+
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -79,7 +79,7 @@ jobs:
           path: |
             coverage-badge.svg
             coverage.xml
-          retention-days: 30 
+          retention-days: 30
 
       - name: Run E2E tests
         run: |

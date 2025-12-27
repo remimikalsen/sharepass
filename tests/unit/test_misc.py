@@ -22,12 +22,8 @@ async def test_init_db(tmp_path, monkeypatch):
     await init_db()
 
     # Connect to the database and verify that both tables exist.
-    async with aiosqlite.connect(
-        str(db_file), detect_types=sqlite3.PARSE_DECLTYPES
-    ) as db:
-        async with db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ) as cursor:
+    async with aiosqlite.connect(str(db_file), detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        async with db.execute("SELECT name FROM sqlite_master WHERE type='table'") as cursor:
             rows = await cursor.fetchall()
             tables = {row[0] for row in rows}
     assert "secrets" in tables, "Table 'secrets' was not created."
@@ -37,8 +33,15 @@ async def test_init_db(tmp_path, monkeypatch):
 # 2. Test the version context processor.
 @pytest.mark.asyncio
 async def test_version_context_processor():
-    # The processor doesn't really use the request, so a dummy object is sufficient.
-    dummy_request = object()
+    # Create a dict-like request object that supports get() and item assignment
+    class DummyRequest(dict):
+        def __init__(self):
+            super().__init__()
+
+        def get(self, key, default=None):
+            return super().get(key, default)
+
+    dummy_request = DummyRequest()
     context = await version_context_processor(dummy_request)
     assert (
         context.get("VERSION") == VERSION
@@ -46,6 +49,20 @@ async def test_version_context_processor():
     assert (
         context.get("ANALYTICS_SCRIPT") == ANALYTICS_SCRIPT
     ), "ANALYTICS_SCRIPT in context does not match module-level value."
+    # Verify CSP_NONCE is generated
+    assert (
+        "CSP_NONCE" in context
+    ), "CSP_NONCE should be in context."
+    assert (
+        context.get("CSP_NONCE") is not None
+    ), "CSP_NONCE should not be None."
+    assert (
+        len(context.get("CSP_NONCE")) > 0
+    ), "CSP_NONCE should not be empty."
+    # Verify nonce is stored in request
+    assert (
+        dummy_request.get("csp_nonce") == context.get("CSP_NONCE")
+    ), "Nonce should be stored in request for middleware use."
 
 
 # 3. Test the 404 handler.
@@ -54,9 +71,7 @@ async def test_handle_404():
     # Create a dummy Jinja2 environment with a minimal 404 template.
     # The goal of this test is to verify that the 404 handler renders a template and returns the correct status code.
     env = jinja2.Environment(
-        loader=jinja2.DictLoader(
-            {"404.html": "<html><body>404 Not Found</body></html>"}
-        )
+        loader=jinja2.DictLoader({"404.html": "<html><body>404 Not Found</body></html>"})
     )
 
     # Create a dummy request that mimics what aiohttp_jinja2.setup() would provide.
@@ -73,6 +88,4 @@ async def test_handle_404():
     response = await handle_404(request)
     assert response.status == 404, f"Expected status 404 but got {response.status}"
     # Check that the rendered text includes content from our dummy 404 template.
-    assert (
-        "404 Not Found" in response.text
-    ), "Rendered 404 page does not contain expected text."
+    assert "404 Not Found" in response.text, "Rendered 404 page does not contain expected text."

@@ -34,6 +34,24 @@ jobs:
              npm audit --audit-level=high && exit 1)
           echo "npm audit passed - no high or higher vulnerabilities found."
 
+      - name: Run pip-audit
+        run: |
+          echo "Running pip-audit to check Python dependencies for vulnerabilities..."
+          pip install pip-audit
+          pip-audit --requirement requirements.txt --format json --output pip-audit-results.json || \
+            (echo "::error::pip-audit found vulnerabilities in Python dependencies." && \
+             pip-audit --requirement requirements.txt --format table && exit 1)
+          echo "pip-audit passed - no vulnerabilities found in Python dependencies."
+
+      - name: Run bandit security linter
+        run: |
+          echo "Running bandit for Python code security analysis..."
+          pip install bandit[toml]
+          bandit -r app/ -f json -o bandit-report.json || \
+            (echo "::error::bandit found security issues in Python code." && \
+             bandit -r app/ -f screen && exit 1)
+          echo "bandit passed - no security issues found in Python code."
+
       - name: Run Trivy vulnerability scanner in repo mode
         uses: aquasecurity/trivy-action@0.33.1
         with:
@@ -54,16 +72,16 @@ jobs:
           # Run Trivy again to get JSON output for checking
           trivy fs --severity CRITICAL --scanners vuln,secret,misconfig \
             --format json --exit-code 0 --ignorefile .trivyignore . > trivy-critical-check.json || true
-          
+
           # Count critical severity issues
           CRITICAL_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-critical-check.json 2>/dev/null || echo "0")
-          
+
           echo "Critical vulnerabilities: $CRITICAL_COUNT"
-          
+
           # Display summary
           trivy fs --severity CRITICAL --scanners vuln,secret,misconfig \
             --format table --exit-code 0 --ignorefile .trivyignore . || true
-          
+
           if [ "$CRITICAL_COUNT" -gt 0 ]; then
             echo "::error::Found $CRITICAL_COUNT critical severity vulnerabilities"
             exit 1
@@ -115,16 +133,16 @@ jobs:
           # For a simpler approach, run Trivy again to get JSON output
           trivy image --severity CRITICAL --scanners vuln,secret,misconfig \
             --format json --exit-code 0 --ignorefile .trivyignore credshare:scan > trivy-check.json || true
-          
+
           # Count critical severity issues
           CRITICAL_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-check.json 2>/dev/null || echo "0")
-          
+
           echo "Critical vulnerabilities: $CRITICAL_COUNT"
-          
+
           # Display summary
           trivy image --severity CRITICAL --scanners vuln,secret,misconfig \
             --format table --exit-code 0 --ignorefile .trivyignore credshare:scan || true
-          
+
           if [ "$CRITICAL_COUNT" -gt 0 ]; then
             echo "::error::Found $CRITICAL_COUNT critical severity vulnerabilities"
             exit 1
@@ -158,4 +176,3 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'opengrep_report.sarif'
-

@@ -11,7 +11,7 @@
    ```powershell
    playwright install
    ```
-   
+
    **Note:** This downloads browser binaries (Chromium, Firefox, WebKit) which are required for e2e tests. On Windows, this may take a few minutes.
 
 ## Running Tests
@@ -32,7 +32,7 @@ pytest -m "not e2e"
    # Option 1: Run directly
    cd app
    python app.py
-   
+
    # Option 2: Or use Docker Compose
    docker compose up
    ```
@@ -53,5 +53,3 @@ pytest -m "not e2e"
 ## Coverage Reports
 
 Coverage reports are automatically generated when running pytest. View them in the terminal output.
-
-

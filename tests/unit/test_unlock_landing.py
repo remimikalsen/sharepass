@@ -60,9 +60,7 @@ async def test_unlock_secret_landing_found(test_db):
     response = await unlock_secret_landing(request)
     content = response.text
     assert "Download Page:" in content, "Expected the download page to be rendered."
-    assert (
-        download_code in content
-    ), "The download code should appear in the rendered page."
+    assert download_code in content, "The download code should appear in the rendered page."
 
 
 @pytest.mark.asyncio

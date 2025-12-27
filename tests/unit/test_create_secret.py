@@ -71,23 +71,17 @@ async def test_upload_secret_creates_record(test_db):
     # Verify that the response status is 200 and its text starts with "/unlock/".
     assert response.status == 200, f"Unexpected status: {response.status}"
     download_url = response.text
-    assert download_url.startswith(
-        "/unlock/"
-    ), f"Expected a download URL, got: {download_url}"
+    assert download_url.startswith("/unlock/"), f"Expected a download URL, got: {download_url}"
 
     # Verify that a secret record was created in the database.
     async with aiosqlite.connect(test_db, detect_types=sqlite3.PARSE_DECLTYPES) as db:
-        async with db.execute(
-            "SELECT secret, download_code, upload_time FROM secrets"
-        ) as cursor:
+        async with db.execute("SELECT secret, download_code, upload_time FROM secrets") as cursor:
             row = await cursor.fetchone()
             assert row is not None, "No secret record created in the database."
             secret_value, download_code, upload_time = row
 
             # Check that the stored secret contains the payload we provided.
-            assert (
-                test_payload in secret_value
-            ), "Stored secret does not match the test payload."
+            assert test_payload in secret_value, "Stored secret does not match the test payload."
 
             # Verify that the download code in the record matches the one in the response URL.
             assert download_url.endswith(

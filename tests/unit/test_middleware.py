@@ -29,9 +29,18 @@ async def test_security_headers(aiohttp_client, minimal_app):
     csp = resp.headers.get("Content-Security-Policy")
     assert csp is not None
     assert "default-src 'self'" in csp
+    # Verify that script-src does NOT contain unsafe-inline (should use nonces instead)
+    # For non-template responses, nonce may not be present, but unsafe-inline should still not be in script-src
+    script_src_part = csp.split("script-src")[1].split(";")[0] if "script-src" in csp else ""
+    assert "'unsafe-inline'" not in script_src_part, "CSP script-src should not contain unsafe-inline"
     # Also verify that your analytics script CSP, if provided, appears.
     if ANALYTICS_SCRIPT_CSP:
         assert ANALYTICS_SCRIPT_CSP in csp
+
+    # Check the Permissions-Policy header.
+    permissions_policy = resp.headers.get("Permissions-Policy")
+    assert permissions_policy is not None, "Permissions-Policy header is missing"
+    assert "geolocation=()" in permissions_policy, "Permissions-Policy should restrict geolocation"
 
     # Check the X-Content-Type-Options header.
     xcto = resp.headers.get("X-Content-Type-Options")
