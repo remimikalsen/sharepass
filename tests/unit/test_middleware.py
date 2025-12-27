@@ -9,6 +9,15 @@ def minimal_app():
     # Create a minimal aiohttp app that uses only the security middleware.
     app = web.Application(middlewares=[security_headers_middleware])
 
+    # Remove Server header using signal handler (same as in create_app)
+    # This ensures the header is removed even if aiohttp adds it after middleware runs
+    async def on_response_prepare(request, response):
+        # Remove Server header that aiohttp automatically adds
+        if "Server" in response.headers:
+            del response.headers["Server"]
+
+    app.on_response_prepare.append(on_response_prepare)
+
     # Add a simple route that returns a basic response.
     async def handler(request):
         return web.Response(text="Hello, World!")
@@ -61,3 +70,10 @@ async def test_security_headers(aiohttp_client, minimal_app):
     else:
         # Otherwise, it should not be present.
         assert "Strict-Transport-Security" not in resp.headers
+
+    # Verify that server information headers are removed (security best practice)
+    assert "Server" not in resp.headers, "Server header should be removed to hide server information"
+    assert "X-Powered-By" not in resp.headers, "X-Powered-By header should be removed"
+    assert "X-AspNet-Version" not in resp.headers, "X-AspNet-Version header should be removed"
+    assert "X-Runtime" not in resp.headers, "X-Runtime header should be removed"
+    assert "X-Version" not in resp.headers, "X-Version header should be removed"

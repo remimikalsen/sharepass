@@ -560,6 +560,20 @@ async def purge_expired():
 async def security_headers_middleware(request, handler):
     response = await handler(request)
 
+    # Hide server information - remove headers that reveal server details
+    # This makes it harder for attackers to identify the server stack
+    # Note: aiohttp automatically adds Server header, so we remove it here
+    headers_to_remove = [
+        "Server",  # Remove server type/version (aiohttp adds this automatically)
+        "X-Powered-By",  # Remove framework information
+        "X-Runtime",  # Remove runtime information
+        "X-Version",  # Remove version information
+    ]
+    for header in headers_to_remove:
+        # Use del to ensure header is completely removed
+        if header in response.headers:
+            del response.headers[header]
+
     # Get nonce from request (set by context processor)
     nonce = request.get("csp_nonce", "")
 
@@ -625,6 +639,15 @@ async def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
     app = web.Application(
         client_max_size=MAX_CLIENT_SIZE, middlewares=[security_headers_middleware]
     )
+
+    # Remove Server header using signal handler (aiohttp adds it automatically)
+    # This ensures the header is removed even if aiohttp adds it after middleware runs
+    async def on_response_prepare(request, response):
+        # Remove Server header that aiohttp automatically adds
+        if "Server" in response.headers:
+            del response.headers["Server"]
+
+    app.on_response_prepare.append(on_response_prepare)
 
     aiohttp_jinja2.setup(
         app,
