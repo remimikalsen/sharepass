@@ -43,8 +43,9 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code from the host
+# Copy application code and VERSION file from the host
 COPY ./app ./
+COPY VERSION ./
 
 # Overlay only the built front-end assets from the builder stage
 # This brings in the webpack bundle and vendor files — NOT node_modules
