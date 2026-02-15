@@ -20,10 +20,7 @@ RUN groupadd -r testuser 2>/dev/null || true && \
 # Prepare app
 COPY /app ./app
 COPY VERSION ./app
-RUN mkdir -p ./app/uploads ./app/database && \
-    # Create /app directory structure for app.py compatibility (it expects /app/database)
-    # The app code has DATABASE_DIR = "/app/database" hardcoded
-    mkdir -p /app/database /app/uploads
+RUN mkdir -p ./app/database
 
 # Install production dependencies
 COPY requirements.txt .
@@ -40,8 +37,7 @@ RUN pip install --no-cache-dir -r ./tests/requirements-tests.txt
 #  - docker run --rm snapfile-tests test-e2e
 COPY tests-docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh && \
-    # Ensure testuser owns the testbench directory and /app directories
-    chown -R testuser:testuser /testbench /app
+    chown -R testuser:testuser /testbench
 
 # Switch to non-root user
 USER testuser

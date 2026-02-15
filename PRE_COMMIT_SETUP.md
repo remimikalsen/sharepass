@@ -2,12 +2,29 @@
 
 This guide will help you set up pre-commit hooks to catch linting and security issues before they reach your pipeline.
 
+## Prerequisites
+
+Some hooks rely on external tools that are **not** Python packages and must be installed separately:
+
+- **OpenGrep** (SAST scanning) — standalone binary, not available via pip:
+
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+  ```
+
+  Verify: `opengrep --version`
+
+- **Trivy** (filesystem vulnerability scan, pre-push only) — see [Trivy installation docs](https://aquasecurity.github.io/trivy/latest/getting-started/installation/)
+
+  Verify: `trivy --version`
+
 ## Installation
 
-1. **Install pre-commit** (if not already installed):
+1. **Install dev dependencies** (includes pre-commit, pip-audit, etc.):
    ```bash
-   pip install pre-commit
+   pip-sync requirements.txt requirements-dev.txt
    ```
+   See [Developer Notes](README.md#developer-notes) for the full virtual environment setup.
 
 2. **Install the git hooks**:
    ```bash

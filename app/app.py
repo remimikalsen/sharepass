@@ -48,7 +48,10 @@ MAX_CLIENT_SIZE = 1024 * 768  # 0.75MB
 MAX_SECRET_SIZE = 1024 * 512  # 0.5MB
 MAX_KEY_LENGTH = 1024  # Maximum key length in characters
 
-DATABASE_DIR = "/app/database"
+DATABASE_DIR = os.getenv(
+    "DATABASE_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "database"),
+)
 DATABASE_PATH = os.path.join(DATABASE_DIR, "secrets.db")
 APP_KEY = "aiohttp_jinja2_environment"
 
