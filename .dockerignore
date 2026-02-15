@@ -1,0 +1,30 @@
+# Version control
+.git
+.github
+
+# Development / virtual environments
+venv/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+
+# Test suites
+tests/
+tests-docker/
+dev-tools/
+
+# Dev-only config and docs
+.pre-commit-config.yaml
+.trivyignore
+requirements-dev.*
+SECURITY_REVIEW.md
+PRE_COMMIT_SETUP.md
+sharepass.txt
+sharepass_cli.py
+
+# IDE
+.vscode/
+.cursor/

@@ -1,10 +1,9 @@
-# Stage 1: Build assets using Node
+# Stage 1: Build front-end assets
 FROM node:25-alpine AS builder
-WORKDIR /app
+WORKDIR /build
 
 # Copy npm configuration and package files
-COPY .npmrc ./
-COPY package*.json ./
+COPY .npmrc package.json package-lock.json ./
 
 # Run npm audit before installing to check for vulnerabilities
 # This checks the package-lock.json for known vulnerabilities
@@ -19,31 +18,40 @@ RUN npm audit --audit-level=high || \
 # npm ci respects .npmrc settings automatically
 RUN npm ci
 
-# Copy the rest of the project files
-COPY . .
+# Copy only the files needed to build front-end assets
+COPY highlight-setup.js webpack.config.js ./
 
-# Build highlight bundle
+# Build highlight bundle (outputs to app/static/js/)
 RUN npm run build-highlight
 
-# Copy front-end assets to the static folder
-RUN npm run copy-assets
+# Copy vendor assets from node_modules to app/static/
+# Uses shell commands instead of 'npm run copy-assets' (which uses shx/shelljs/execa)
+# to avoid pulling the execa transitive dependency into the build layer
+RUN mkdir -p app/static/js app/static/css && \
+    cp node_modules/feather-icons/dist/feather.min.js app/static/js/feather.min.js && \
+    cp node_modules/highlight.js/styles/default.min.css app/static/css/highlight.default.min.css
 
-# Stage 2: Build the final image using slim Python image
+# Stage 2: Final production image
 FROM python:3.14-slim
 WORKDIR /app
 
 # Create a non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Copy the static assets from the builder stage
-COPY --from=builder /app /app
+# Install Python dependencies first (separate layer for better caching)
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy your application code and install Python dependencies
-COPY ./app /app
-#COPY requirements.txt /app
-RUN mkdir /app/database && \
-    pip install --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt && \
+# Copy application code from the host
+COPY ./app ./
+
+# Overlay only the built front-end assets from the builder stage
+# This brings in the webpack bundle and vendor files — NOT node_modules
+COPY --from=builder /build/app/static/ ./static/
+
+# Create database directory and set ownership
+RUN mkdir -p ./database && \
     chown -R appuser:appuser /app
 
 # Switch to non-root user

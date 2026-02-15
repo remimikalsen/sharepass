@@ -258,22 +258,55 @@ The encryption format matches the web interface: AES-GCM with PBKDF2 key derivat
 
 ### Python dependencies
 
-Set up a Python virtual environment for local development to manage Python package versions correctly:
+Set up a Python virtual environment for local development to manage Python package versions correctly.
 
-- `pip-tools` is used to compile canonical requirements in `requirements.in`.
-- `requirements.txt` is generated using:
+There are two sets of pinned dependencies:
+
+- `requirements.in` / `requirements.txt` — **production** dependencies (used in Docker).
+- `requirements-dev.in` / `requirements-dev.txt` — **dev/test** dependencies (pre-commit, pip-tools, pip-audit, pytest, etc.), constrained against the production pins.
+
+#### Initial setup
+
+```sh
+python -m venv venv
+source venv/bin/activate   # On Windows: venv\Scripts\activate
+pip install pip-tools
+
+# Compile both requirement files
+pip-compile requirements.in
+pip-compile requirements-dev.in
+
+# Install everything for local development
+pip-sync requirements.txt requirements-dev.txt
+```
+
+#### Upgrading dependencies
+
+```sh
+# Upgrade production deps
+pip-compile --upgrade requirements.in
+
+# Re-compile dev deps (picks up new production constraints)
+pip-compile --upgrade requirements-dev.in
+
+# Audit for known vulnerabilities before installing
+pip-audit -r requirements.txt
+pip-audit -r requirements-dev.txt
+
+# Apply the upgrades
+pip-sync requirements.txt requirements-dev.txt
+```
+
+#### Production vs. development
+
+- **Production (Docker):** Only `requirements.txt` is installed — the Dockerfile never sees dev dependencies.
+- **Local development:** Always sync both files so that `pre-commit`, test tools, and dev utilities stay installed:
 
   ```sh
-  pip-compile requirements.in
+  pip-sync requirements.txt requirements-dev.txt
   ```
 
-- To upgrade `requirements.txt`, run:
-
-  ```sh
-  pip-compile --upgrade requirements.in
-  pip install -r requirements.txt
-  pip-sync requirements.txt
-  ```
+> **Security note:** Avoid using `pip install --upgrade <package>` directly, as it may pull in untested or incompatible versions. Instead, always use `pip-compile --upgrade` to resolve and pin all dependencies in a reproducible way. Then run `pip-audit` to check for known vulnerabilities before applying them with `pip-sync`. This ensures every upgrade is audited, recorded in version control, and tested before deployment.
 
 ### Javascript dependencies
 

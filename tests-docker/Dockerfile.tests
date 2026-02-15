@@ -20,10 +20,7 @@ RUN groupadd -r testuser 2>/dev/null || true && \
 # Prepare app
 COPY /app ./app
 COPY VERSION ./app
-RUN mkdir -p ./app/uploads ./app/database && \
-    # Create /app directory structure for app.py compatibility (it expects /app/database)
-    # The app code has DATABASE_DIR = "/app/database" hardcoded
-    mkdir -p /app/database /app/uploads
+RUN mkdir -p ./app/database
 
 # Install production dependencies
 COPY requirements.txt .
