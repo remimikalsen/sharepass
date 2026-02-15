@@ -11,14 +11,8 @@ __pycache__/
 .pytest_cache/
 .coverage
 
-# Test suites
-tests/
-tests-docker/
-dev-tools/
-
 # Dev-only config and docs
 .pre-commit-config.yaml
-.trivyignore
 requirements-dev.*
 SECURITY_REVIEW.md
 PRE_COMMIT_SETUP.md
