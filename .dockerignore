@@ -22,3 +22,6 @@ sharepass_cli.py
 # IDE
 .vscode/
 .cursor/
+
+# Redesign kit (reference material, not part of the image)
+redesign/

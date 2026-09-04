@@ -3,54 +3,48 @@ from playwright.sync_api import Page
 
 
 @pytest.mark.e2e
-def test_dark_mode_toggle(page: Page, base_url: str):
-    # Navigate to the home page.
+def test_theme_toggle_cycles_auto_light_dark(page: Page, base_url: str):
+    """The header button cycles Auto -> Light -> Dark -> Auto.
+
+    Auto stores nothing (the localStorage key is removed) and sets no data-theme;
+    Light and Dark store one word and set data-theme on <html>.
+    """
     page.goto(base_url, timeout=10_000)
 
-    # Check initial theme from localStorage.
-    initial_theme = page.evaluate("() => localStorage.getItem('theme')")
-    # If no theme is saved, the default is "light".
-    assert initial_theme in [
-        None,
-        "light",
-    ], f"Expected initial theme to be light, got {initial_theme}"
+    def stored():
+        return page.evaluate("() => localStorage.getItem('theme')")
 
-    # Verify that body does not have the dark class.
-    body_has_dark = page.evaluate("() => document.body.classList.contains('dark')")
-    assert not body_has_dark, "Expected body not to have 'dark' class initially"
+    def attr():
+        return page.evaluate("() => document.documentElement.getAttribute('data-theme')")
 
-    # Verify that the toggle button shows the moon icon (🌙).
-    toggle_text = page.inner_text("#theme-toggle")
-    assert toggle_text == "🌙", f"Expected toggle text '🌙', got '{toggle_text}'"
+    def label():
+        return page.inner_text("#theme-toggle").strip()
 
-    # Click the toggle button to switch to dark mode.
+    # Default: Auto, nothing stored, no explicit theme.
+    assert stored() is None
+    assert attr() is None
+    assert label().endswith("Auto")
+
     page.click("#theme-toggle")
+    assert stored() == "light"
+    assert attr() == "light"
+    assert label().endswith("Light")
 
-    # Verify that localStorage theme is now "dark".
-    new_theme = page.evaluate("() => localStorage.getItem('theme')")
-    assert new_theme == "dark", f"Expected localStorage theme to be 'dark', got '{new_theme}'"
-
-    # Check that the body now has the 'dark' class.
-    body_has_dark = page.evaluate("() => document.body.classList.contains('dark')")
-    assert body_has_dark, "Expected body to have 'dark' class after toggling"
-
-    # Verify that the toggle button text changes to sun icon (☀️).
-    toggle_text = page.inner_text("#theme-toggle")
-    assert toggle_text == "☀️", f"Expected toggle text '☀️', got '{toggle_text}'"
-
-    # Click the toggle button again to switch back to light mode.
     page.click("#theme-toggle")
+    assert stored() == "dark"
+    assert attr() == "dark"
+    assert label().endswith("Dark")
 
-    # Verify that localStorage theme is now "light".
-    reverted_theme = page.evaluate("() => localStorage.getItem('theme')")
-    assert (
-        reverted_theme == "light"
-    ), f"Expected localStorage theme to be 'light', got '{reverted_theme}'"
+    # Back to Auto: the stored key must be deleted, not set to "auto".
+    page.click("#theme-toggle")
+    assert stored() is None
+    assert attr() is None
+    assert label().endswith("Auto")
 
-    # Verify that the body no longer has the 'dark' class.
-    body_has_dark = page.evaluate("() => document.body.classList.contains('dark')")
-    assert not body_has_dark, "Expected body not to have 'dark' class after second toggle"
-
-    # Verify that the toggle button text reverts to moon icon (🌙).
-    toggle_text = page.inner_text("#theme-toggle")
-    assert toggle_text == "🌙", f"Expected toggle text '🌙', got '{toggle_text}'"
+    # A stored choice is applied before first paint on the next load.
+    page.click("#theme-toggle")
+    page.click("#theme-toggle")
+    assert stored() == "dark"
+    page.reload()
+    assert attr() == "dark"
+    assert label().endswith("Dark")

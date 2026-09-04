@@ -21,15 +21,9 @@ RUN npm ci
 # Copy only the files needed to build front-end assets
 COPY highlight-setup.js webpack.config.js ./
 
-# Build highlight bundle (outputs to app/static/js/)
+# Build highlight bundle (outputs to app/static/js/). Icons are an inline SVG sprite and
+# fonts are self-hosted in app/static, so nothing else is copied from node_modules.
 RUN npm run build-highlight
-
-# Copy vendor assets from node_modules to app/static/
-# Uses shell commands instead of 'npm run copy-assets' (which uses shx/shelljs/execa)
-# to avoid pulling the execa transitive dependency into the build layer
-RUN mkdir -p app/static/js app/static/css && \
-    cp node_modules/feather-icons/dist/feather.min.js app/static/js/feather.min.js && \
-    cp node_modules/highlight.js/styles/default.min.css app/static/css/highlight.default.min.css
 
 # Stage 2: Final production image
 FROM python:3.14-slim
@@ -38,32 +32,36 @@ WORKDIR /app
 # Create a non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Install Python dependencies first (separate layer for better caching)
+# Install Python dependencies first (separate layer for better caching).
+# pip itself is removed afterwards: it is not needed at runtime and its vendored
+# libraries would otherwise show up in vulnerability scans of the image.
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y pip
 
 # Copy application code and VERSION file from the host
 COPY ./app ./
 COPY VERSION ./
 
 # Overlay only the built front-end assets from the builder stage
-# This brings in the webpack bundle and vendor files — NOT node_modules
-COPY --from=builder /build/app/static/ ./static/
+# This brings in the webpack bundle — NOT node_modules
+COPY --from=builder /build/app/static/js/ ./static/js/
 
-# Create database directory and set ownership
+# Application code stays owned by root so the app user cannot modify it at runtime.
+# Only the database directory (IP hash salt and SQLite file) is writable by appuser.
 RUN mkdir -p ./database && \
-    chown -R appuser:appuser /app
+    chown appuser:appuser ./database
 
 # Switch to non-root user
 USER appuser
 
 EXPOSE 8080
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-# Healthcheck to verify the application is running
-# Uses Python's built-in urllib to check if the app responds
+# Healthcheck: /healthz answers 204 without rendering a page and is excluded from the access log
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/')" || exit 1
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')" || exit 1
 
 CMD ["python", "app.py"]

@@ -2,7 +2,6 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build-highlight": "webpack",
-    "copy-assets": "shx mkdir -p app/static/js app/static/css && shx cp node_modules/feather-icons/dist/feather.min.js app/static/js/feather.min.js && shx cp node_modules/highlight.js/styles/default.min.css app/static/css/highlight.default.min.css",
     "audit": "npm audit --audit-level=high",
     "audit:critical": "npm audit --audit-level=critical",
     "audit:fix": "npm audit fix",
@@ -12,9 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "feather-icons": "^4.29.2",
-    "highlight.js": "^11.11.1",
-    "prismjs": "^1.29.0"
+    "highlight.js": "^11.11.1"
   },
   "devDependencies": {
     "shx": "^0.4.0",

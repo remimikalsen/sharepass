@@ -1,69 +1,161 @@
 <!DOCTYPE html>
-<html lang="en" class="no-transition">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}CredShare.app{% endblock %}</title>
-  <link rel="icon" href="/static/favicon.png" type="image/png">
-  <link rel="stylesheet" href="/static/css/main.css?v4">
+  <title>{% block title %}CredShare{% endblock %}</title>
 
-  <meta name="title" property="og:title" content="CredShare.app">
-  <meta name="image" property="og:image" content="/static/favicon.png">
+  <link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/brand/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="/static/brand/favicon-16.png" sizes="16x16" type="image/png">
+  <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F3F6FA">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0C1424">
+
+  <link rel="stylesheet" href="/static/css/fonts.css?v1">
+  <link rel="stylesheet" href="/static/css/main.css?v5">
+  {% if PAGE_URL %}<link rel="canonical" href="{% block canonical %}{{ PAGE_URL }}{% endblock %}">{% endif %}
+  {% block robots %}{% endblock %}
+
+  {% block social_meta %}
+  <meta name="description" content="Share a password or other secret with a single-use link. Encrypted in your browser, unlocked once with a key you choose, then deleted. Free, anonymous and open source.">
   <meta name="author" content="Remi Mikalsen">
-  <meta name="description" property="og:description" content="Share passwords and other secrets securely with CredShare.app. Your secrets are encrypted and can only be unlocked with the key you provide.">
-  <meta name="keywords" content="password, secret, sharing, encryption, secure, safe, link, key, CredShare, CredShare.app">
-  <meta property="og:url" content="https://credshare.app">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="CredShare">
+  <meta property="og:title" content="CredShare — secure one-time password sharing">
+  <meta property="og:description" content="Share a password or other secret with a single-use link. Encrypted in your browser, unlocked once with a key you choose, then deleted. Free, anonymous and open source.">
+  <meta property="og:url" content="{{ PAGE_URL }}">
+  <meta property="og:image" content="{{ BASE_URL }}/static/brand/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The CredShare logo, a faceted blue shield with a keyhole, with the words Secure one-time password sharing.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="CredShare — secure one-time password sharing">
+  <meta name="twitter:description" content="Share a password or other secret with a single-use link. Encrypted in your browser, unlocked once with a key you choose, then deleted. Free, anonymous and open source.">
+  <meta name="twitter:image" content="{{ BASE_URL }}/static/brand/social-card.png">
+  {% endblock %}
+
+  <script nonce="{{ CSP_NONCE }}">
+    // Apply a saved theme before first paint. No saved theme = follow the system.
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
 
   {% block extra_head %}{% endblock %}
-  {{ ANALYTICS_SCRIPT|safe }}
+  {% if ANALYTICS_SCRIPT %}{{ ANALYTICS_SCRIPT|safe }}{% endif %}
 </head>
 <body>
-  <header>
-    <a href="/" class="logo-link"><h1>CredShare.app</h1></a>
-    <p class="header">Simple and secure password sharing</p>
-    <!-- Dark Mode Toggle Button -->
-    <button title="Toggle dark Mode" id="theme-toggle" aria-label="Toggle Dark Mode">🌙</button>
+  <svg width="0" height="0" class="sr-only" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="cs-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C6E4F7"/><stop offset="1" stop-color="#6FB0E0"/></linearGradient>
+      <symbol id="cs-mark" viewBox="0 0 64 72">
+        <g stroke-width="2.5" stroke-linejoin="round">
+          <path d="m 32,4 25,8 V 38 C 57,51 46,61 32,68 18,61 7,51 7,38 V 12 L 18.093627,8.4500394 Z" fill="url(#cs-g)"/>
+          <path d="M 9.2210797,13.542416 32.123393,6.2210797 32,44 Z" fill="#ffffff" fill-opacity="0.35" stroke="none"/>
+          <path d="M32 44 L57 38 C57 51 46 61 32 68 Z" fill="#1C4E7E" fill-opacity=".38" stroke="none"/>
+          <path d="M7 12 L32 44 L57 12 M32 44 V68 M7 38 L32 44 L57 38" fill="none" stroke-width="1.75"/>
+          <circle cx="32" cy="27" r="7" fill="#0F3D6B" stroke="none"/>
+          <path d="M28.5 31 L25 50 H39 L35.5 31 Z" fill="#0F3D6B" stroke="none"/>
+        </g>
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" d="M9 9h10v10H9zM5 15V5h10"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m5 12 5 5L20 7"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M12 3 2 21h20zm0 7v5m0 3v.5"/></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.75"/></symbol>
+      <symbol id="i-eye-off" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 6.3A10.6 10.6 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3.2 3.7M6.6 6.6C3.7 8.3 2 12 2 12s3.5 6 10 6c1.6 0 3-.3 4.2-.9M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.75"/><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+      <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+    </defs>
+  </svg>
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <a href="/" class="brand">
+      <svg aria-hidden="true" focusable="false"><use href="#cs-mark"/></svg>
+      <span>CredShare</span>
+    </a>
+    <p class="tagline">Secure one-time password sharing</p>
+    <button type="button" id="theme-toggle" class="btn btn-secondary theme-toggle" data-mode="auto">
+      <span class="sr-only">Theme: </span>
+      <span data-mode-label="auto"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-auto"/></svg>Auto</span>
+      <span data-mode-label="light" hidden><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sun"/></svg>Light</span>
+      <span data-mode-label="dark" hidden><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-moon"/></svg>Dark</span>
+    </button>
   </header>
 
-  <main>
+  <main id="main" tabindex="-1">
     {% block content %}{% endblock %}
   </main>
 
-  <footer>
-    <p>
-      Version <a href="https://github.com/remimikalsen/sharepass/pkgs/container/credshare">{{ VERSION }}</a>. Brought to you by <a href="https://theawesomegarage.com" target="_blank">TheAwesomeGarage.com</a>
-    </p>
-    <p>
-      Why not try out <a href="https://snapfile.me" target="_blank">Snapfile.me</a>? File sharing made simple.
-    </p>
-    <p>
-      View the source code on <a href="https://github.com/remimikalsen/sharepass" target="_blank">GitHub.com</a>
+  <footer class="site-footer">
+    <aside class="sponsor" aria-labelledby="sponsor-title">
+      <div class="sponsor-text">
+        <p class="eyebrow">Sponsored by</p>
+        <p id="sponsor-title" class="sponsor-name">ArktIQ IT <span>AS</span></p>
+        <p class="sponsor-blurb">Over 25 years of expertise in system integration, custom applications and security. Tomasjord, Norway.</p>
+      </div>
+      <a href="https://arktiq.no" class="btn btn-secondary" rel="sponsored noopener">Visit arktiq.no</a>
+    </aside>
+    <p class="footer-meta">
+      <span>CredShare <a href="https://github.com/remimikalsen/sharepass/pkgs/container/credshare" rel="external noopener">version {{ VERSION }}</a></span>
+      <span><a href="https://github.com/remimikalsen/sharepass" rel="external noopener">Source on GitHub</a></span>
+      <span><a href="/privacy">Privacy policy</a></span>
+      <span><a href="/cookies">Cookie policy</a></span>
+      <span>Need to share a file? <a href="https://snapfile.me" rel="external noopener">Snapfile.me</a></span>
     </p>
   </footer>
 
+  <p id="page-status" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></p>
+
   {% block extra_scripts %}{% endblock %}
+
   <script nonce="{{ CSP_NONCE }}">
-    // Check for a saved theme or default to 'light'
-    const toggleButton = document.getElementById('theme-toggle');
-    const currentTheme = localStorage.getItem('theme') || 'light';
-    if (currentTheme === 'dark') {
-      document.body.classList.add('dark');
-      toggleButton.textContent = '☀️';
-    }
+    (function () {
+      // Three states. "auto" stores nothing and follows the system; "light" and
+      // "dark" store one word in localStorage under the key "theme".
+      var root = document.documentElement;
+      var toggle = document.getElementById('theme-toggle');
+      var status = document.getElementById('page-status');
+      var NEXT = { auto: 'light', light: 'dark', dark: 'auto' };
+      var SAY = {
+        auto: 'Theme follows your system setting. Nothing is stored.',
+        light: 'Light theme on.',
+        dark: 'Dark theme on.'
+      };
 
-    toggleButton.addEventListener('click', () => {
-      document.body.classList.toggle('dark');
-      const newTheme = document.body.classList.contains('dark') ? 'dark' : 'light';
-      toggleButton.textContent = newTheme === 'dark' ? '☀️' : '🌙';
-      localStorage.setItem('theme', newTheme);
-    });
-
-    // Once the page has fully loaded, remove the no-transition class
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        document.documentElement.classList.remove('no-transition');
-      }, 0);
-    });
+      function storedMode() {
+        try {
+          var t = localStorage.getItem('theme');
+          return (t === 'light' || t === 'dark') ? t : 'auto';
+        } catch (e) { return 'auto'; }
+      }
+      function apply(mode) {
+        if (mode === 'auto') {
+          root.removeAttribute('data-theme');
+          try { localStorage.removeItem('theme'); } catch (e) {}
+        } else {
+          root.setAttribute('data-theme', mode);
+          try { localStorage.setItem('theme', mode); } catch (e) {}
+        }
+        toggle.dataset.mode = mode;
+        toggle.querySelectorAll('[data-mode-label]').forEach(function (el) {
+          el.hidden = el.dataset.modeLabel !== mode;
+        });
+        toggle.setAttribute('title', 'Theme: ' + mode + '. Press to switch to ' + NEXT[mode] + '.');
+      }
+      toggle.addEventListener('click', function () {
+        var next = NEXT[toggle.dataset.mode || storedMode()];
+        apply(next);
+        status.textContent = SAY[next];
+      });
+      apply(storedMode());
+    })();
   </script>
 </body>
 </html>

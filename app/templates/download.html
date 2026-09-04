@@ -1,216 +1,293 @@
 {% extends "base.html" %}
 
-{% block title %}Unlock the secret | CredShare.app{% endblock %}
+{% block title %}Unlock the secret — CredShare{% endblock %}
 
-{% block extra_head %}
-    <link rel="stylesheet" href="/static/css/highlight.default.min.css">
-{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 
 {% block content %}
-  <div id="unlock-area-container">
-    <h2>Unlock the secret</h2>
-    <div id="unlock-area">
-      <h3>Enter your encryption key</h3>
-      <p>The secret will be revealed once you unlock it. You have {{ max_attempts }} attempts.</p>
-      <input type="hidden" id="download_code" value="{{ download_code }}">
-      <label for="key">
-        Encryption key:
-        <input id="key" type="text" name="key" placeholder="Unlock me...">
-        <p id="download-key-error"></p>
-      </label>
-      <button id="unlock-button">Unlock!</button>
-      <p id="time-left"></p>
-    </div>
-    <div id="cli-note" class="cli-hint">
-      <p><strong>💡 Did you know?</strong> You can also retrieve this secret via CLI:</p>
-      <div class="cli-command">
-        <code id="cli-curl-command">curl -X POST <span id="curl-base-url">{{ base_url }}</span>/api/unlock -H 'Content-Type: application/json' -d '{{ "{" }}"download_code": "{{ download_code }}", "key": "YOUR_KEY"{{ "}" }}'</code>
+  <div id="unlock-container" class="stack">
+    <section id="unlock-area-container" class="card" aria-labelledby="unlock-title" data-download-code="{{ download_code }}" data-max-attempts="{{ max_attempts }}">
+      <p class="eyebrow">Someone shared a secret with you</p>
+      <h1 id="unlock-title">Unlock the secret</h1>
+      <p class="card-lead">Enter the key you were given. You have {{ max_attempts }} attempts; after that the secret is deleted.</p>
+      <form id="unlock-form" class="form-grid" novalidate>
+        <div class="form-field">
+          <label for="key">Encryption key</label>
+          <input id="key" name="key" type="text" class="field mono" maxlength="{{ max_key_length }}" placeholder="The key from the sender" autocomplete="off" spellcheck="false" autofocus>
+        </div>
+        <p id="download-key-error" class="field-error" role="alert"></p>
+        <div class="actions">
+          <button type="submit" id="unlock-button" class="btn btn-primary">Unlock</button>
+        </div>
+      </form>
+      <p id="time-left" role="status" aria-live="polite"></p>
+    </section>
+
+    <details class="cli-help">
+      <summary>Prefer the command line? Use curl</summary>
+      <div class="cli-body">
+        <p>Retrieve the secret from a terminal. It is printed as plain text and deleted from the server, exactly as when unlocking here:</p>
+        <pre><code id="cli-curl-command">curl -X POST <span id="curl-base-url">{{ base_url }}</span>/api/unlock -H 'Content-Type: application/json' -d '{"download_code": "{{ download_code }}", "key": "YOUR_KEY"}'</code><button type="button" id="copy-cli-command-button" class="btn btn-quiet" aria-label="Copy command to clipboard"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy"/></svg></button></pre>
+      </div>
+    </details>
+  </div>
+
+  <div id="unlock-status" class="status-panel" hidden>
+    <div id="secret-unlocked-container" class="result result-ok" hidden>
+      <div class="result-head">
+        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check"/></svg>
+        <div class="result-body">
+          <h2 id="unlocked-title" class="result-title">Secret unlocked</h2>
+          <p>It has been deleted from the server. If you close or refresh this page, it is gone for good.</p>
+        </div>
+      </div>
+      <div id="secret-display" class="secret-box" data-revealed="false">
+        <pre><code id="secret-code"></code></pre>
+        <div class="actions">
+          <button type="button" id="copy-secret" class="btn btn-primary" aria-label="Copy secret to clipboard"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy"/></svg>Copy secret</button>
+          <button type="button" id="toggle-visibility" class="btn btn-secondary" aria-pressed="false">
+            <svg class="icon" aria-hidden="true" focusable="false"><use id="visibility-icon" href="#i-eye"/></svg>
+            <span data-when="hidden">Reveal</span><span data-when="revealed">Hide</span>
+          </button>
+        </div>
+        <p class="share-helptext">You can copy the secret without revealing it on screen.</p>
       </div>
     </div>
+    <div id="error-message" class="result result-err" role="alert" hidden></div>
   </div>
 
-  <div id="secret-unlocked-container" style="display:none;">
-    <h2>Secret unlocked!</h2>
-    <div id="secret-display">
-      <button id="toggle-visibility" aria-label="Toggle secret visibility">
-        <i id="visibility-icon" data-feather="eye"></i>
-      </button>
-      <button id="copy-secret" aria-label="Copy secret to clipboard">
-        <i data-feather="copy"></i>
-      </button>
-      <pre><code id="secret-code"></code></pre>
-      <p class="sharing-hint">
-        Click the eye icon to toggle visibility, or if you prefer, just copy the secret to your clipboard without displaying it. If you close or refresh the page, the secret is gone!
-      </p>
-    </div>
-  </div>
-
-  <div class="to-home">
-    <span class="link-back-span">[ <a href="/" class="success-link-back">Share a secret with CredShare.app</a> ]</span>
-  </div>
-
-  <!-- Notification element for link copying -->
-  <div id="link-copy-notification" style="display: none;"></div>
+  <p class="link-back-span"><a href="/" class="btn btn-secondary success-link-back">Share a secret with CredShare</a></p>
+  <p id="unlock-live" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></p>
 {% endblock %}
 
 {% block extra_scripts %}
+  <div id="link-copy-notification" class="toast" hidden aria-hidden="true"></div>
   <script src="/static/js/highlight.bundle.min.js"></script>
-  <script src="/static/js/feather.min.js"></script>
   <script nonce="{{ CSP_NONCE }}">
-    let timerId;
-    feather.replace();
+    // Server-provided values are read from data attributes (HTML-escaped by the template
+    // engine) rather than interpolated into JavaScript source.
+    const unlockArea = document.getElementById('unlock-area-container');
+    const downloadCode = unlockArea.dataset.downloadCode;
+    const unlockContainer = document.getElementById('unlock-container');
+    const unlockForm = document.getElementById('unlock-form');
+    const keyInput = document.getElementById('key');
+    const unlockButton = document.getElementById('unlock-button');
+    const keyError = document.getElementById('download-key-error');
+    const timeLeft = document.getElementById('time-left');
+    const unlockStatus = document.getElementById('unlock-status');
+    const unlockedPanel = document.getElementById('secret-unlocked-container');
+    const errorMessage = document.getElementById('error-message');
+    const secretDisplay = document.getElementById('secret-display');
+    const secretCode = document.getElementById('secret-code');
+    const live = document.getElementById('unlock-live');
     const linkCopyNotification = document.getElementById('link-copy-notification');
+    let timerId = null;
+    let revealedSecret = null;
 
-    // Update curl command base URL to match current page protocol (https preferred)
-    (function() {
+    // ---- helpers -------------------------------------------------------
+
+    function announce(message) {
+      live.textContent = '';
+      setTimeout(() => { live.textContent = message; }, 50);
+    }
+
+    function svgIcon(id, className) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', className);
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('focusable', 'false');
+      const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      use.setAttribute('href', '#' + id);
+      svg.appendChild(use);
+      return svg;
+    }
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function focusHeading(heading) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus();
+    }
+
+    function setKeyError(message) {
+      keyError.replaceChildren();
+      keyInput.removeAttribute('aria-invalid');
+      if (!message) return;
+      keyError.appendChild(svgIcon('i-alert', 'icon'));
+      keyError.appendChild(document.createTextNode(message));
+      keyInput.setAttribute('aria-invalid', 'true');
+      keyInput.focus();
+    }
+
+    function setBusy(busy) {
+      unlockButton.disabled = busy;
+      unlockButton.setAttribute('aria-busy', busy ? 'true' : 'false');
+      unlockButton.lastChild.textContent = busy ? 'Unlocking…' : 'Unlock';
+    }
+
+    // The curl example should match the address the visitor actually used.
+    (function () {
       const curlBaseUrlEl = document.getElementById('curl-base-url');
-      if (curlBaseUrlEl) {
-        // Get current page protocol and host
-        const protocol = window.location.protocol.replace(':', ''); // 'https' or 'http'
-        const host = window.location.host; // 'localhost:8080' or 'example.com'
-        const detectedBaseUrl = `${protocol}://${host}`;
-        curlBaseUrlEl.textContent = detectedBaseUrl;
-      }
+      if (curlBaseUrlEl) curlBaseUrlEl.textContent = window.location.origin;
     })();
 
+    // ---- unlocking -----------------------------------------------------
+
+    unlockForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      unlockSecret();
+    });
+    keyInput.addEventListener('input', () => setKeyError(''));
+
     async function unlockSecret() {
-      const keyInput = document.querySelector('input[name="key"]');
       const key = keyInput.value.trim();
-      const downloadCode = document.getElementById('download_code').value;
-      const unlockAreaContainer = document.getElementById('unlock-area-container');
-      const unlockedMessageContainer = document.getElementById('secret-unlocked-container');
-      const errorMessage = document.getElementById('download-key-error');
-
-      // Clear any previous messages.
-      errorMessage.innerText = '';
-      errorMessage.style.display = 'none';
-
-      if (!key) {
-        errorMessage.innerText = "Please enter an encryption key.";
-        errorMessage.style.display = 'block';
-        return;
-      }
+      if (!key) { setKeyError('Enter the key you were given.'); return; }
+      setKeyError('');
+      setBusy(true);
 
       try {
         const response = await fetch('/unlock_secret', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            download_code: downloadCode,
-            key: key
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ download_code: downloadCode, key: key })
         });
-
         const result = await response.json();
+        setBusy(false);
 
         if (response.ok) {
-          // Decryption succeeded.
-          unlockAreaContainer.style.display = 'none';
-          errorMessage.style.display = 'none';
-          errorMessage.innerText = '';
-          unlockedMessageContainer.style.display = 'block';
-
-          const secretCodeBlock = document.getElementById('secret-code');
-          const highlighted = hljs.highlightAuto(result.secret);
-          secretCodeBlock.className = highlighted.language ? `language-${highlighted.language}` : '';
-          secretCodeBlock.innerHTML = highlighted.value;
-
-          document.getElementById('secret-unlocked-container').style.display = 'block';
-
-          document.getElementById('copy-secret').addEventListener('click', function() {
-            copyToClipboard(result.secret);
-          });
-
-          document.getElementById('toggle-visibility').addEventListener('click', function() {
-            const codeContainer = document.getElementById('secret-code');
-            const icon = document.getElementById('visibility-icon');
-            if (codeContainer.classList.contains('visible')) {
-              icon.setAttribute('data-feather', 'eye-off');
-            } else {
-              icon.setAttribute('data-feather', 'eye');
-            }
-            feather.replace();
-            codeContainer.classList.toggle('visible');
-          });
-
+          showSecret(result.secret);
+        } else if (result.attempts_remaining !== undefined) {
+          const n = result.attempts_remaining;
+          setKeyError('Wrong key. ' + n + (n === 1 ? ' attempt' : ' attempts') + ' remaining before the secret is deleted.');
+        } else if (response.status === 404) {
+          showGone('This secret is gone', 'It was unlocked already, or the link expired. Secrets are deleted after that, so nobody else can open it either.');
+        } else if (response.status === 400 && /maximum attempts/i.test(result.error || '')) {
+          showGone('Too many wrong keys', 'The secret has been deleted to protect it. Ask the sender to share it again.');
         } else {
-          // Decryption failed.
-          errorMessage.style.display = 'block';
-          let errorText = result.error || "Failed to unlock secret.";
-          if (result.attempts_remaining !== undefined) {
-            errorText += ` You have ${result.attempts_remaining} attempts remaining.`;
-          }
-          errorMessage.innerText = errorText;
+          setKeyError(result.error || 'Could not unlock the secret.');
         }
       } catch (error) {
-        errorMessage.style.display = 'block';
-        errorMessage.innerText = "Error unlocking secret.";
+        setBusy(false);
+        setKeyError('Could not reach the server. Check your connection, then try again.');
         console.error('Unlock error:', error);
       }
     }
 
-
-    function copyToClipboard(text) {
-      navigator.clipboard.writeText(text)
-        .then(() => {
-          showLinkCopyNotification('Secret copied to clipboard!');
-        })
-        .catch(err => {
-          console.error('Error copying text: ', err);
-        });
+    function showGone(title, hint) {
+      if (timerId) clearInterval(timerId);
+      unlockContainer.hidden = true;
+      unlockStatus.hidden = false;
+      unlockedPanel.hidden = true;
+      errorMessage.replaceChildren();
+      const heading = el('h2', 'result-title');
+      heading.appendChild(svgIcon('i-alert', 'icon'));
+      heading.appendChild(document.createTextNode(title));
+      errorMessage.appendChild(heading);
+      errorMessage.appendChild(el('p', null, hint));
+      errorMessage.hidden = false;
+      focusHeading(heading);
     }
 
+    function showSecret(secret) {
+      if (timerId) clearInterval(timerId);
+      revealedSecret = secret;
+      keyInput.value = '';
+
+      const highlighted = window.hljs ? hljs.highlightAuto(secret) : null;
+      if (highlighted && highlighted.language) {
+        secretCode.className = 'hljs language-' + highlighted.language;
+        secretCode.innerHTML = highlighted.value;  // highlight.js escapes the input before wrapping tokens
+      } else {
+        secretCode.className = 'hljs';
+        secretCode.textContent = secret;
+      }
+
+      unlockContainer.hidden = true;
+      unlockStatus.hidden = false;
+      errorMessage.hidden = true;
+      unlockedPanel.hidden = false;
+      announce('Secret unlocked. Use the buttons to copy it or reveal it on screen.');
+      focusHeading(document.getElementById('unlocked-title'));
+    }
+
+    document.getElementById('copy-secret').addEventListener('click', (e) => {
+      if (revealedSecret !== null) copyToClipboard(revealedSecret, e.currentTarget);
+    });
+
+    document.getElementById('toggle-visibility').addEventListener('click', (e) => {
+      const revealed = secretDisplay.dataset.revealed !== 'true';
+      secretDisplay.dataset.revealed = revealed ? 'true' : 'false';
+      e.currentTarget.setAttribute('aria-pressed', revealed ? 'true' : 'false');
+      document.getElementById('visibility-icon').setAttribute('href', revealed ? '#i-eye-off' : '#i-eye');
+      announce(revealed ? 'Secret revealed on screen.' : 'Secret hidden.');
+    });
+
+    // ---- clipboard -----------------------------------------------------
+
+    function copyToClipboard(text, button) {
+      navigator.clipboard.writeText(text).then(() => {
+        showLinkCopyNotification('Copied to clipboard');
+        announce('Secret copied to clipboard.');
+        if (button) {
+          const use = button.querySelector('use');
+          if (use) { use.setAttribute('href', '#i-check'); setTimeout(() => use.setAttribute('href', '#i-copy'), 2000); }
+        }
+      }).catch((err) => {
+        console.error('Error copying text: ', err);
+        announce('Copy failed. Reveal the secret and copy it manually.');
+      });
+    }
+
+    document.getElementById('copy-cli-command-button').addEventListener('click', (e) => {
+      copyToClipboard(document.getElementById('cli-curl-command').innerText, e.currentTarget);
+    });
+
+    let toastTimer = null;
     function showLinkCopyNotification(message) {
-      linkCopyNotification.innerText = message;
-      linkCopyNotification.style.display = 'block';
-      setTimeout(() => {
-          linkCopyNotification.style.opacity = 0;
-          setTimeout(() => {
-              linkCopyNotification.style.display = 'none';
-              linkCopyNotification.style.opacity = 1;
-          }, 500);
-      }, 3000);
+      linkCopyNotification.replaceChildren(svgIcon('i-check', 'icon'), document.createTextNode(message));
+      linkCopyNotification.hidden = false;
+      linkCopyNotification.style.opacity = 1;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        linkCopyNotification.style.opacity = 0;
+        setTimeout(() => { linkCopyNotification.hidden = true; }, 250);
+      }, 2500);
     }
+
+    // ---- expiry --------------------------------------------------------
 
     async function fetchTimeLeft() {
       try {
-        const response = await fetch(`/time-left/{{ download_code }}`);
+        const response = await fetch('/time-left/' + encodeURIComponent(downloadCode));
         if (response.ok) {
           const data = await response.json();
           if (data.hours_left !== undefined && data.minutes_left !== undefined) {
-            // Use textContent for safety - create line break via DOM if needed
-            const timeLeftEl = document.getElementById('time-left');
-            timeLeftEl.textContent = `Time left to unlock: ${data.hours_left} hours and ${data.minutes_left} minutes. `;
-            const br = document.createElement('br');
-            timeLeftEl.appendChild(br);
-            timeLeftEl.appendChild(document.createTextNode('Once unlocked, the secret is immediately deleted.'));
+            timeLeft.textContent = 'Time left to unlock: ' + data.hours_left + ' h ' + data.minutes_left + ' min. Once unlocked, the secret is deleted immediately.';
           } else {
-            document.getElementById('time-left').innerText = data.message;
+            timeLeft.textContent = data.message;
           }
-        } else if (response.status === 404) {
-          document.getElementById('time-left').innerText = 'The secret has expired or never existed.';
+        } else if (response.status === 404 || response.status === 410) {
           clearInterval(timerId);
+          showGone('This secret is gone', 'It was unlocked already, or the link expired. Secrets are deleted after that, so nobody else can open it either.');
         } else {
-          document.getElementById('time-left').innerText = 'Error fetching time left.';
+          timeLeft.textContent = 'Could not fetch the time left.';
           clearInterval(timerId);
         }
       } catch (error) {
-        document.getElementById('time-left').innerText = 'Error fetching time left.';
+        timeLeft.textContent = 'Could not fetch the time left.';
         console.error('Error fetching time left:', error);
         clearInterval(timerId);
       }
     }
 
-    function startTimer() {
+    window.addEventListener('load', () => {
       fetchTimeLeft();
       timerId = setInterval(fetchTimeLeft, 60000);
-    }
-
-    window.onload = startTimer;
-
-    // Add event listener for unlock button
-    document.getElementById('unlock-button').addEventListener('click', unlockSecret);
+    });
   </script>
 {% endblock %}

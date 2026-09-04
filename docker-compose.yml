@@ -7,8 +7,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.sharepass
+    # Bind to loopback so only the reverse proxy on this host can reach the app. Exposing
+    # the port publicly would let clients bypass TLS and forge X-Forwarded-For.
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
+    # Container hardening: no privilege escalation, no Linux capabilities, read-only
+    # root filesystem (only the database volume is writable).
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     environment:
       - TZ=${DOCKER_TZ}
       - MAX_USES_QUOTA=10
@@ -16,10 +27,27 @@ services:
       - SECRET_EXPIRY_MINUTES=1440  # 24 hours
       - QUOTA_RENEWAL_MINUTES=60  # 1 hour
       - PURGE_INTERVAL_MINUTES=5
-      - INTERNAL_IP=127.0.0.1
-      - INTERNAL_PORT=8080
+      # Number of reverse proxies that append to X-Forwarded-For (1 = one proxy such as
+      # Nginx/Traefik). Set to 0 if clients reach CredShare directly, otherwise the quota
+      # can be bypassed with a forged header.
+      - TRUSTED_PROXY_COUNT=1
+      # Optional: only believe X-Forwarded-* from these proxy addresses or CIDR ranges,
+      # e.g. 172.18.0.0/16 for a Docker network or 127.0.0.1 for a proxy on this host.
+      - TRUSTED_PROXY_IPS=
+      # Anonymised, cookie-free analytics only (e.g. Plausible). Leave empty to disable.
       - ANALYTICS_SCRIPT=
       - ANALYTICS_SCRIPT_CSP=
+      # Set to true in production behind TLS: sends HSTS and forces https in generated links.
       - HTTPS_ONLY=false
-    #volumes:
-    #  - /snapfile/database:/app/database
+      # Absolute URL clients use to reach CredShare, e.g. https://credshare.app. Always set
+      # this in production so canonical URLs, sharing cards and CLI examples never depend
+      # on request headers. Derived from the request when empty.
+      - PUBLIC_BASE_URL=
+    volumes:
+      - sharepass-database:/app/database
+      # To use a host bind mount instead of a Docker volume, replace the above with:
+      # - /sharepass/database:/app/database
+      # Make sure the host directory exists and is writable by the container user.
+
+volumes:
+  sharepass-database:
