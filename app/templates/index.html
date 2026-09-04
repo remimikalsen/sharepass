@@ -1,247 +1,422 @@
 {% extends "base.html" %}
 
-{% block title %}CredShare.app - Secure password sharing{% endblock %}
+{% block title %}CredShare — Secure one-time password sharing{% endblock %}
+
+{% block extra_head %}
+  <script type="application/ld+json" nonce="{{ CSP_NONCE }}">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "CredShare",
+    "url": "{{ BASE_URL }}/",
+    "image": "{{ BASE_URL }}/static/brand/social-card.png",
+    "description": "Secure one-time password sharing. Encrypt a password or other secret in your browser, share a single-use link, and the secret is deleted once it is unlocked or when the link expires.",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "Any",
+    "browserRequirements": "Requires JavaScript",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "NOK" },
+    "sponsor": { "@type": "Organization", "name": "ArktIQ IT AS", "url": "https://arktiq.no" },
+    "license": "https://github.com/remimikalsen/sharepass/blob/main/LICENSE"
+  }
+  </script>
+{% endblock %}
 
 {% block content %}
-  <div id="secret-container" class="container">
-      <h2>Share a secret</h2>
-      <div id="secret-upload-form-container">
-          <label for="secret">
-              The secret
-              <textarea rows="3" id="secret" name="secret" placeholder="What you share..."></textarea>
-          </label>
-          <label for="key">
-              The encryption key
-              <input id="key" type="text" name="key" placeholder="How you unlock it...">
-          </label>
-          <button id="upload-button">Share it!</button>
+  <div class="hero">
+  <div class="hero-main">
+  <div id="share-container" class="stack">
+    <section id="secret-container" class="card" aria-labelledby="share-title">
+      <p class="eyebrow">Share a secret</p>
+      <h1 id="share-title">Share a password with a single-use link</h1>
+      <form id="share-form" class="form-grid" novalidate>
+        <div class="form-field">
+          <label for="secret">The secret</label>
+          <textarea id="secret" name="secret" class="field" rows="4" maxlength="{{ max_secret_chars }}" placeholder="A password, an API token, a config snippet…" autocomplete="off" spellcheck="false" aria-describedby="secret-hint"></textarea>
+          <p id="secret-hint" class="hint">Encrypted in your browser before it is sent. Up to {{ max_secret_chars_text }} characters.</p>
+        </div>
+        <div class="form-field">
+          <label for="key">The key to unlock it</label>
+          <input id="key" name="key" type="text" class="field mono" maxlength="{{ max_key_length }}" placeholder="A passphrase the recipient will type" autocomplete="off" spellcheck="false" aria-describedby="key-hint">
+          <p id="key-hint" class="hint">Send the key separately, through a different channel than the link.</p>
+        </div>
+        <p id="form-error" class="field-error" role="alert"></p>
+        <div class="actions">
+          <button type="submit" id="upload-button" class="btn btn-primary">Create the link</button>
+        </div>
+        <p class="share-helptext">
+          The link works once, then the secret is deleted. It is also deleted after {{ max_attempts }} wrong keys,
+          or after {{ secret_expiry_text }} if nobody unlocks it.
+        </p>
+      </form>
+    </section>
+
+    <details class="cli-help">
+      <summary>Prefer the command line? Use curl</summary>
+      <div class="cli-body">
+        <p>Encrypt locally with the helper script from the repository, then post the result. The unlock link comes back as JSON:</p>
+        <pre><code id="cli-command">python sharepass_cli.py 'my secret' -k 'my key' -o curl -u {{ base_url }}</code><button type="button" id="copy-cli-command-button" class="btn btn-quiet" aria-label="Copy command to clipboard"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy"/></svg></button></pre>
+        <p>
+          The same quota, size limit and expiry apply as for secrets shared from this page.
+          <a href="https://github.com/remimikalsen/sharepass#api-usage-clicurl" rel="external noopener">API documentation</a>.
+        </p>
       </div>
-      <p class="secret-upload-helptext">
-          Your secret will be encrypted with the encryption key you provide, and you will get a link you can use to share the secret safely.
-          The encrypted secret will be stored temporarily on our servers, but we won't have the key to unlock it.
-          The encrypted secret can only be unlocked with the key you provide. It will be deleted once unlocked, or after {{ max_attempts }} unsuccessful unlocking attempts. <br /><br />
-          The sharing link expires after {{ secret_expiry_hours }} hours, {{ secret_expiry_minutes }} minutes. <br />Shortly after, the encrypted secret is deleted too.
-      </p>
-      <div id="loading-overlay">
-          <img src="/static/spinner.gif" alt="Loading...">
-      </div>
+    </details>
   </div>
 
-  <div id="status-wrapper">
-      <div id="success-message"></div>
-      <div id="error-message"></div>
+  <div id="share-status" class="status-panel" hidden>
+    <div id="success-message" class="result result-ok" hidden></div>
+    <div id="error-message" class="result result-err" role="alert" hidden></div>
   </div>
+
   <p class="quota-info"></p>
+  <p id="upload-status" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></p>
+  </div>
 
-  <div id="link-copy-notification" style="display: none;"></div>
+  <section class="about" aria-labelledby="about-title">
+    <h2 id="about-title">How CredShare works</h2>
+    <ol class="steps">
+      <li><b>Enter the secret and a key.</b> Your browser encrypts the secret with the key before anything leaves your device. The server only ever stores ciphertext.</li>
+      <li><b>Share the link and the key separately.</b> Send the link by chat or email and the key by phone or in person. Need to send a file too? <a href="https://snapfile.me" rel="external noopener">Snapfile.me</a> works the same way.</li>
+      <li><b>Unlocked once, then gone.</b> The secret is deleted the moment it is unlocked, after {{ max_attempts }} wrong keys, or after {{ secret_expiry_text }} if nobody opens it.</li>
+    </ol>
+    <h2>Private by design</h2>
+    <p>
+      CredShare is a free, anonymous way to send passwords, API tokens and other secrets without leaving them in a chat log or inbox.
+      Encryption is AES-256-GCM with a key derived from your passphrase. The key is never stored: the server sees it only for the instant the recipient unlocks the secret.
+      It is hosted in Norway and shares nothing with third parties. There are no accounts, no tracking and no cookies.
+      Read the <a href="/privacy">privacy policy</a>, or inspect the <a href="https://github.com/remimikalsen/sharepass" rel="external noopener">open-source code</a> and run your own instance.
+    </p>
+  </section>
+  </div>
 {% endblock %}
 
 {% block extra_scripts %}
-  <script src="/static/js/feather.min.js"></script>
+  <div id="link-copy-notification" class="toast" hidden aria-hidden="true"></div>
   <script nonce="{{ CSP_NONCE }}">
-      feather.replace();
-      const secretContainer = document.getElementById('secret-container');
-      const loadingOverlay = document.getElementById('loading-overlay');
-      const statusWrapper = document.getElementById('status-wrapper');
-      const successMessage = document.getElementById('success-message');
-      const errorMessage = document.getElementById('error-message');
-      const linkCopyNotification = document.getElementById('link-copy-notification');
+    const shareContainer = document.getElementById('share-container');
+    const shareForm = document.getElementById('share-form');
+    const secretInput = document.getElementById('secret');
+    const keyInput = document.getElementById('key');
+    const formError = document.getElementById('form-error');
+    const submitButton = document.getElementById('upload-button');
+    const shareStatus = document.getElementById('share-status');
+    const successMessage = document.getElementById('success-message');
+    const errorMessage = document.getElementById('error-message');
+    const uploadStatus = document.getElementById('upload-status');
+    const linkCopyNotification = document.getElementById('link-copy-notification');
+    const quotaInfo = document.querySelector('.quota-info');
+    const maxSecretBytes = {{ max_secret_bytes }};
 
-      const secret = document.querySelector('textarea[name="secret"]');
-      const key = document.querySelector('input[name="key"]');
+    // ---- helpers -------------------------------------------------------
 
-      function showLoading() {
-          secretContainer.classList.add('greyed');
-          loadingOverlay.classList.add('visible');
-      }
+    function announce(message) {
+      uploadStatus.textContent = '';
+      setTimeout(() => { uploadStatus.textContent = message; }, 50);
+    }
 
-      function hideLoading() {
-          secretContainer.classList.remove('greyed');
-          loadingOverlay.classList.remove('visible');
-      }
+    function svgIcon(id, className) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', className);
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('focusable', 'false');
+      const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      use.setAttribute('href', '#' + id);
+      svg.appendChild(use);
+      return svg;
+    }
 
-      function arrayBufferToBase64(buffer) {
-          let binary = '';
-          const bytes = new Uint8Array(buffer);
-          for (let i = 0; i < bytes.byteLength; i++) {
-              binary += String.fromCharCode(bytes[i]);
-          }
-          return window.btoa(binary);
-      }
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
 
-      async function encryptSecret(secretText, password) {
-          const enc = new TextEncoder();
-          const salt = window.crypto.getRandomValues(new Uint8Array(16));
-          const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    function focusHeading(heading) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus();
+    }
 
-          const passwordKey = await window.crypto.subtle.importKey(
-              "raw",
-              enc.encode(password),
-              "PBKDF2",
-              false,
-              ["deriveKey"]
-          );
+    function arrayBufferToBase64(buffer) {
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      return window.btoa(binary);
+    }
 
-          const aesKey = await window.crypto.subtle.deriveKey(
-              {
-                  name: "PBKDF2",
-                  salt: salt,
-                  iterations: 100000,
-                  hash: "SHA-256"
-              },
-              passwordKey,
-              { name: "AES-GCM", length: 256 },
-              false,
-              ["encrypt"]
-          );
+    // ---- encryption ----------------------------------------------------
 
-          const ciphertextBuffer = await window.crypto.subtle.encrypt(
-              {
-                  name: "AES-GCM",
-                  iv: iv
-              },
-              aesKey,
-              enc.encode(secretText)
-          );
-
-          const encryptedData = {
-              salt: arrayBufferToBase64(salt),
-              iv: arrayBufferToBase64(iv),
-              ciphertext: arrayBufferToBase64(ciphertextBuffer)
-          };
-
-          return JSON.stringify(encryptedData);
-      }
-
-      async function uploadSecret() {
-          if (secret.value === '' || key.value === '') {
-              showError('Please enter a secret and a key.');
-              return;
-          }
-
-          showLoading();
-
-          try {
-              const encryptedSecret = await encryptSecret(secret.value, key.value);
-              const formData = new FormData();
-              formData.append('encryptedsecret', encryptedSecret);
-
-              const xhr = new XMLHttpRequest();
-              xhr.open('POST', '/lock', true);
-
-              xhr.onload = () => {
-                hideLoading();
-                if (xhr.status === 200) {
-                    showSuccess(xhr.responseText);
-                } else {
-                    // Use the response text if it exists, otherwise fallback to a generic error message.
-                    showError(xhr.responseText || 'Error creating a sharing link. The secret has been discarded.');
-                }
-              };
-
-              xhr.onerror = () => {
-                  hideLoading();
-                  showError('Error creating a sharing link. The secret has been discarded.');
-              };
-
-              xhr.send(formData);
-          } catch (err) {
-              hideLoading();
-              showError('Encryption error. Please try again.');
-              console.error('Encryption error:', err);
-          }
-      }
-
-      function showError(status) {
-          secretContainer.style.display = 'none';
-          statusWrapper.style.display = 'block';
-          // Use textContent to prevent XSS - it automatically escapes HTML
-          const errorDiv = document.createElement('div');
-          errorDiv.className = 'error-content fade-in';
-          const errorP = document.createElement('p');
-          errorP.textContent = status;  // textContent escapes HTML automatically
-          errorDiv.appendChild(errorP);
-          errorMessage.innerHTML = '';  // Clear any existing content
-          errorMessage.appendChild(errorDiv);
-      }
-
-      function showSuccess(data) {
-          const publicDownloadUrl = `${window.location.origin}${data}`;
-
-          successMessage.innerHTML = `
-              <div class="success-content">
-                  <h2>Your secret is safe!</h2>
-                  <p>Use this link to share it:</p>
-                  <span class="sharing-link"><a href="${publicDownloadUrl}" class="success-link">${publicDownloadUrl}</a></span>
-                  <span class="success-span-share">Click the icon to copy the link to the clipboard
-                      <button id="copy-landing-link-button" class="success-button" aria-label="Copy link to clipboard">
-                          <i data-feather="copy"></i>
-                      </button>
-                  </span>
-                  <p class="sharing-hint">Remember to share the encryption key too, but use a different channel.</p>
-                  <span class="link-back-span">[ <a href="/" class="success-link-back">Share another secret with CredShare.app</a> ]</span>
-              </div>
-          `;
-
-          feather.replace();
-          secretContainer.style.display = 'none';
-          statusWrapper.style.display = 'block';
-
-          updateQuotaInfo();
-
-          document.getElementById('copy-landing-link-button').addEventListener('click', () => {
-              copyToClipboard(publicDownloadUrl);
-          });
-      }
-
-      function copyToClipboard(text) {
-          navigator.clipboard.writeText(text).then(() => {
-              showLinkCopyNotification('Link copied to clipboard!');
-          }).catch(err => {
-              console.error('Error copying text: ', err);
-          });
-      }
-
-      function showLinkCopyNotification(message) {
-          linkCopyNotification.innerText = message;
-          linkCopyNotification.style.display = 'block';
-          setTimeout(() => {
-              linkCopyNotification.style.opacity = 0;
-              setTimeout(() => {
-                  linkCopyNotification.style.display = 'none';
-                  linkCopyNotification.style.opacity = 1;
-              }, 500);
-          }, 3000);
-      }
-
-      // Add event listener for upload button
-      document.getElementById('upload-button').addEventListener('click', uploadSecret);
-
-      window.addEventListener('load', () => {
-          fetch('/check-limit')
-              .then(response => response.json())
-              .then(data => {
-                  if (data.limit_reached) {
-                      showError('Your sharing limit has been reached.');
-                  }
-                  document.querySelector('.quota-info').innerText = `You have ${data.quota_left} password shares left on your quota.
-                      The quota will reset in ${data.quota_renewal_hours} hours and ${data.quota_renewal_minutes} minutes.`;
-              })
-              .catch(error => {
-                  console.error('Error checking limit:', error);
-              });
+    async function encryptSecret(secretText, password) {
+      const enc = new TextEncoder();
+      const salt = window.crypto.getRandomValues(new Uint8Array(16));
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const passwordKey = await window.crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+      const aesKey = await window.crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' },
+        passwordKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt']
+      );
+      const ciphertextBuffer = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, aesKey, enc.encode(secretText));
+      return JSON.stringify({
+        salt: arrayBufferToBase64(salt),
+        iv: arrayBufferToBase64(iv),
+        ciphertext: arrayBufferToBase64(ciphertextBuffer)
       });
+    }
 
-      function updateQuotaInfo() {
-          fetch('/check-limit')
-              .then(response => response.json())
-              .then(data => {
-                  document.querySelector('.quota-info').innerText = `You have ${data.quota_left} password shares left on your quota.
-                      The quota will reset in ${data.quota_renewal_hours} hours and ${data.quota_renewal_minutes} minutes.`;
-              })
-              .catch(error => {
-                  console.error('Error checking limit:', error);
-              });
+    // ---- form ----------------------------------------------------------
+
+    function setFormError(message, field) {
+      formError.replaceChildren();
+      secretInput.removeAttribute('aria-invalid');
+      keyInput.removeAttribute('aria-invalid');
+      if (!message) return;
+      formError.appendChild(svgIcon('i-alert', 'icon'));
+      formError.appendChild(document.createTextNode(message));
+      if (field) { field.setAttribute('aria-invalid', 'true'); field.focus(); }
+    }
+
+    function setBusy(busy) {
+      submitButton.disabled = busy;
+      submitButton.setAttribute('aria-busy', busy ? 'true' : 'false');
+      submitButton.lastChild.textContent = busy ? 'Encrypting…' : 'Create the link';
+    }
+
+    shareForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      shareSecret();
+    });
+    secretInput.addEventListener('input', () => setFormError(''));
+    keyInput.addEventListener('input', () => setFormError(''));
+
+    async function shareSecret() {
+      const secretText = secretInput.value;
+      const password = keyInput.value;
+      if (secretText === '') { setFormError('Enter the secret you want to share.', secretInput); return; }
+      if (password === '') { setFormError('Choose a key the recipient will use to unlock it.', keyInput); return; }
+      if (new TextEncoder().encode(secretText).length > maxSecretBytes) {
+        setFormError('The secret is too large. Keep it under ' + Math.round(maxSecretBytes / 1024) + ' KB.', secretInput);
+        return;
       }
+      setFormError('');
+      setBusy(true);
+      announce('Encrypting the secret.');
+
+      let encryptedSecret;
+      try {
+        encryptedSecret = await encryptSecret(secretText, password);
+      } catch (err) {
+        setBusy(false);
+        console.error('Encryption error:', err);
+        showError('Encryption failed', 'Your browser could not encrypt the secret. Nothing was sent. Try again, or use a current browser.', true);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('encryptedsecret', encryptedSecret);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/lock', true);
+      xhr.onload = () => {
+        setBusy(false);
+        if (xhr.status === 200) {
+          showSuccess(xhr.responseText);
+        } else if (xhr.status === 429) {
+          showError('Sharing limit reached', 'The quota resets automatically. Check the time shown below.', false);
+        } else if ([400, 403, 413].includes(xhr.status) && xhr.responseText) {
+          showError(xhr.responseText.trim(), 'The secret was not stored. Check the form, then try again.', true);
+        } else {
+          showError('Could not create a link', 'The encrypted secret was discarded. Check your connection, then try again.', true);
+        }
+      };
+      xhr.onerror = () => {
+        setBusy(false);
+        showError('Could not create a link', 'The encrypted secret was discarded. Check your connection, then try again.', true);
+      };
+      xhr.send(formData);
+    }
+
+    // ---- results -------------------------------------------------------
+
+    function showError(title, hint, canRetry) {
+      shareContainer.hidden = true;
+      shareStatus.hidden = false;
+      successMessage.hidden = true;
+
+      errorMessage.replaceChildren();
+      const heading = el('h2', 'result-title');
+      heading.appendChild(svgIcon('i-alert', 'icon'));
+      heading.appendChild(document.createTextNode(title));
+      errorMessage.appendChild(heading);
+      if (hint) errorMessage.appendChild(el('p', null, hint));
+
+      if (canRetry) {
+        const actions = el('div', 'actions');
+        const retry = el('button', 'btn btn-secondary', 'Try again');
+        retry.type = 'button';
+        retry.addEventListener('click', resetToForm);
+        actions.appendChild(retry);
+        errorMessage.appendChild(actions);
+      }
+      errorMessage.hidden = false;
+      focusHeading(heading);
+    }
+
+    function resetToForm() {
+      errorMessage.hidden = true;
+      shareStatus.hidden = true;
+      shareContainer.hidden = false;
+      secretInput.focus();
+    }
+
+    function showSuccess(data) {
+      // Expected format: /unlock/{12 alphanumeric characters}
+      const path = String(data).trim();
+      if (!/^\/unlock\/[A-Za-z0-9]{12}$/.test(path)) {
+        showError('Unexpected response from the server', 'Please try again.', true);
+        return;
+      }
+      const unlockUrl = window.location.origin + path;
+
+      // The plaintext and key are no longer needed in the page.
+      shareForm.reset();
+
+      successMessage.replaceChildren();
+      const head = el('div', 'result-head');
+      head.appendChild(svgIcon('i-check', 'icon'));
+      const body = el('div', 'result-body');
+      const heading = el('h2', 'result-title', 'Your link is ready');
+      body.appendChild(heading);
+      body.appendChild(el('p', null, 'Send this link to the recipient. It opens the unlock page; the secret is revealed once, with the key, and then deleted.'));
+      head.appendChild(body);
+      successMessage.appendChild(head);
+
+      const linkbox = el('div', 'linkbox');
+      const label = el('label', 'sr-only', 'Unlock page link');
+      label.htmlFor = 'unlock-link';
+      const field = el('input', 'field mono');
+      field.type = 'text';
+      field.id = 'unlock-link';
+      field.readOnly = true;
+      field.value = unlockUrl;
+      const copyButton = el('button', 'btn btn-primary');
+      copyButton.type = 'button';
+      copyButton.id = 'copy-landing-link-button';
+      copyButton.appendChild(svgIcon('i-copy', 'icon'));
+      copyButton.appendChild(document.createTextNode('Copy link'));
+      copyButton.addEventListener('click', () => copyToClipboard(unlockUrl, copyButton));
+      linkbox.append(label, field, copyButton);
+      successMessage.appendChild(linkbox);
+
+      const hint = el('p', 'key-hint');
+      hint.appendChild(document.createTextNode('Remember to share the key too, through a different channel than the link. Whoever has both can read the secret.'));
+      successMessage.appendChild(hint);
+
+      const open = el('p');
+      const unlockLink = el('a', 'success-link', 'Open the unlock page');
+      unlockLink.href = unlockUrl;
+      open.appendChild(unlockLink);
+      successMessage.appendChild(open);
+
+      const actions = el('div', 'actions');
+      const again = el('a', 'btn btn-secondary success-link-back', 'Share another secret');
+      again.href = '/';
+      actions.appendChild(again);
+      successMessage.appendChild(actions);
+
+      shareContainer.hidden = true;
+      shareStatus.hidden = false;
+      errorMessage.hidden = true;
+      successMessage.hidden = false;
+      announce('Your link is ready.');
+      focusHeading(heading);
+      updateQuotaInfo();
+    }
+
+    // ---- command-line helper: animated fallback where ::details-content is unsupported --------
+
+    (function () {
+      const details = document.querySelector('.cli-help');
+      const supportsNative = CSS.supports && CSS.supports('selector(::details-content)');
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!details || supportsNative || reduced) return;
+      const body = details.querySelector('.cli-body');
+      const summary = details.querySelector('summary');
+      summary.addEventListener('click', (e) => {
+        if (details.open) {
+          e.preventDefault();
+          const h = body.offsetHeight;
+          body.style.overflow = 'hidden';
+          body.animate({ height: [h + 'px', '0px'], opacity: [1, 0] }, { duration: 220, easing: 'ease-out' })
+            .finished.then(() => { details.open = false; body.style.overflow = ''; });
+        } else {
+          requestAnimationFrame(() => {
+            const h = body.offsetHeight;
+            body.style.overflow = 'hidden';
+            body.animate({ height: ['0px', h + 'px'] }, { duration: 260, easing: 'ease-out' })
+              .finished.then(() => { body.style.overflow = ''; });
+          });
+        }
+      });
+    })();
+
+    // ---- clipboard -----------------------------------------------------
+
+    function copyToClipboard(text, button) {
+      navigator.clipboard.writeText(text).then(() => {
+        showLinkCopyNotification('Copied to clipboard');
+        announce('Link copied to clipboard.');
+        if (button) {
+          const use = button.querySelector('use');
+          if (use) { use.setAttribute('href', '#i-check'); setTimeout(() => use.setAttribute('href', '#i-copy'), 2000); }
+        }
+      }).catch((err) => {
+        console.error('Error copying text: ', err);
+        announce('Copy failed. Select the link text and copy it manually.');
+      });
+    }
+
+    document.getElementById('copy-cli-command-button').addEventListener('click', (e) => {
+      copyToClipboard(document.getElementById('cli-command').innerText, e.currentTarget);
+    });
+
+    let toastTimer = null;
+    function showLinkCopyNotification(message) {
+      linkCopyNotification.replaceChildren(svgIcon('i-check', 'icon'), document.createTextNode(message));
+      linkCopyNotification.hidden = false;
+      linkCopyNotification.style.opacity = 1;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        linkCopyNotification.style.opacity = 0;
+        setTimeout(() => { linkCopyNotification.hidden = true; }, 250);
+      }, 2500);
+    }
+
+    // ---- quota ---------------------------------------------------------
+
+    function renderQuota(data) {
+      quotaInfo.replaceChildren();
+      quotaInfo.appendChild(document.createTextNode('Quota: '));
+      quotaInfo.appendChild(el('b', null, data.quota_left + (data.quota_left === 1 ? ' share' : ' shares')));
+      quotaInfo.appendChild(document.createTextNode(' left · resets in '));
+      quotaInfo.appendChild(el('b', null, data.quota_renewal_hours + ' h ' + data.quota_renewal_minutes + ' min'));
+    }
+
+    function updateQuotaInfo() {
+      return fetch('/check-limit')
+        .then((response) => response.json())
+        .then((data) => { renderQuota(data); return data; })
+        .catch((error) => { console.error('Error checking limit:', error); });
+    }
+
+    window.addEventListener('load', () => {
+      updateQuotaInfo().then((data) => {
+        if (data && data.limit_reached) {
+          showError('Sharing limit reached', 'The quota resets automatically. Check the time shown below.', false);
+        }
+      });
+    });
   </script>
 {% endblock %}

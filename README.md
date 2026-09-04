@@ -14,7 +14,7 @@ CredShare maintains anonymity while limiting usage by hashing client IP addresse
 
 CredShare is asynchronous by nature, allowing it to scale efficiently even on modest hardware. For additional scalability, you can deploy multiple CredShare containers behind a load balancer.
 
-> **Note:** CredShare doesn’t encrypt network traffic on its own. For secure transmission, it is recommended to run it behind a reverse proxy (e.g., Nginx or Traefik) that terminates TLS. CredShare reads the `X-Forwarded-For` header to determine the originating client IP.
+> **Note:** CredShare doesn’t encrypt network traffic on its own. Run it behind a reverse proxy (e.g., Nginx or Traefik) that terminates TLS, set `HTTPS_ONLY=true` and `PUBLIC_BASE_URL`, and tell CredShare how many proxies sit in front of it with `TRUSTED_PROXY_COUNT` (and optionally which addresses, with `TRUSTED_PROXY_IPS`) so that `X-Forwarded-For` is only believed where it should be. See [Configuration Options](#configuration-options).
 
 ## Table of Contents
 
@@ -41,6 +41,8 @@ CredShare is asynchronous by nature, allowing it to scale efficiently even on mo
 - **One-Time Access:** Secrets are deleted after being viewed or after a set expiry time.
 - **Usage Quotas:** Limits on uploads per IP address to prevent abuse.
 - **Configurable:** Adjustable settings for expiry, quota renewal, and purge intervals.
+- **Private by Design:** No accounts, no cookies, no third-party requests. Fonts and assets are self-hosted, IP addresses are stored only as salted hashes, and the built-in privacy and cookie policies describe exactly what the instance keeps, using its live configuration.
+- **Accessible:** WCAG 2.2 AA colour contrast in both light and dark themes, keyboard-friendly forms, screen-reader announcements for every state.
 
 ## How it Works
 
@@ -129,6 +131,8 @@ docker run -d \
   -e SECRET_EXPIRY_MINUTES=1440 \
   -e QUOTA_RENEWAL_MINUTES=60 \
   -e PURGE_INTERVAL_MINUTES=5 \
+  -e TRUSTED_PROXY_COUNT=1 \
+  -e PUBLIC_BASE_URL=https://credshare.example \
   -v /sharepass/database:/app/database \
   sharepass-image
 ```
@@ -137,20 +141,38 @@ docker run -d \
 
 Modify `--env` variables or your `docker-compose.yml` file to match your setup:
 
-- `HTTPS_ONLY`: Set to true to enable Strict-Transport-Security header (default: false)
+- `HTTPS_ONLY`: Set to true to enable the Strict-Transport-Security header and force https in generated links (default: false)
+- `PUBLIC_BASE_URL`: Absolute URL clients use to reach the service, e.g. `https://credshare.app`. Used for canonical links, sharing cards, the sitemap and CLI examples. Always set it in production; when empty it is derived from the request headers and a warning is logged at start-up (default: '').
+- `TRUSTED_PROXY_COUNT`: Number of reverse proxies that append to `X-Forwarded-For`. `1` for one proxy such as Nginx or Traefik, `0` if clients connect directly. With the wrong value the quota can be bypassed with a forged header (default: 1).
+- `TRUSTED_PROXY_IPS`: Optional comma-separated proxy addresses or CIDR ranges. When set, `X-Forwarded-*` headers are only believed for connections from these addresses (default: '').
 - `MAX_USES_QUOTA`: Maximum uploads allowed per IP address (default: 5).
 - `MAX_ATTEMPTS`: Maximum number of unlocking attempts (default: 5).
 - `SECRET_EXPIRY_MINUTES`: Time in minutes before a secret expires (default: 1440 minutes or 24 hours).
 - `QUOTA_RENEWAL_MINUTES`: Interval for resetting the usage quota (default: 60 minutes).
 - `PURGE_INTERVAL_MINUTES`: Interval for purging expired secrets (default: 5 minutes).
-- `ANALYTICS_SCRIPT`: Complete script tag needed for tracking (default: '').
-- `ANALYTICS_SCRIPT_CSP`: If the analytics script is located on a different domain, add the domain to the CSP header; e.g. https://plausible.yourdomain.com (default: '')
+- `ANALYTICS_SCRIPT`: Complete `<script>` tag for cookie-free, anonymised analytics such as Plausible. Only an external script from an allowed domain is accepted; inline code is rejected (default: '').
+- `ALLOWED_ANALYTICS_DOMAINS`: Comma-separated domains the analytics script may be loaded from (default: `plausible.remim.com,plausible.io`).
+- `ANALYTICS_SCRIPT_CSP`: The https origin of the analytics script, added to the CSP header, e.g. `https://plausible.yourdomain.com` (default: '').
+
+The IP addresses used for the quota are stored as salted hashes. The salt is generated on first start and kept in `ip_hash_salt` next to the database with owner-only permissions, so keep the database directory on a persistent volume.
+
+The container answers `GET /healthz` with 204 for health checks; it is not written to the access log. `/privacy` and `/cookies` describe what the instance stores, with retention figures taken from the configuration above.
 
 Ensure that the database directory exists on your system to persist the database.
 
 ## Accessing the Web Interface
 
-Visit [http://localhost:8080](http://localhost:8080).
+Visit [http://localhost:8080](http://localhost:8080). The pages an instance serves:
+
+| Path | Purpose |
+|---|---|
+| `/` | Share a secret |
+| `/unlock/<code>` | Unlock page for a shared secret (`noindex`, never cached) |
+| `/privacy`, `/cookies` | Privacy and cookie policy, with figures taken from the configuration |
+| `/robots.txt`, `/sitemap.xml` | Only the front page and the policies are offered for indexing |
+| `/healthz` | Liveness probe, returns 204 and is excluded from the access log |
+
+The theme button in the header cycles Auto, Light and Dark. Auto follows the operating system and stores nothing; Light and Dark store one word in `localStorage`.
 
 ## API Usage (CLI/curl)
 
@@ -310,7 +332,9 @@ pip-sync requirements.txt requirements-dev.txt
 
 ### Javascript dependencies
 
-Npm is used to manage packages and webpack to bundle a minimal hightlight package.
+Npm is used to manage packages and webpack to bundle a minimal highlight.js package for the unlock page. Icons are an inline SVG sprite in `base.html` and fonts (Plus Jakarta Sans, JetBrains Mono) are self-hosted from `app/static/fonts`, so nothing else is copied from `node_modules` and a page load makes no third-party request.
+
+Brand assets (favicons, social card) are rendered from `app/static/brand/favicon.svg`. After editing the SVG, regenerate the PNGs with `python dev-tools/render_brand_assets.py` (needs Playwright with Chromium, which the test requirements install). The header mark in `app/templates/base.html` is a copy of the same paths and is updated by hand.
 
 To upgrade npm packages (although, the latest versions are automatically installed on each docker build):
 

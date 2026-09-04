@@ -1,13 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}404 Page not found | CredShare.app{% endblock %}
+{% block title %}Page not found — CredShare{% endblock %}
+
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 
 {% block content %}
-    <h2>404 - Page Not Found</h2>
-    <p>Sorry, the page you are looking for does not exist.</p>
-    <div class="to-home">
-        <span class="link-back-span">
-            But why not [ <a href="/" class="success-link-back">share a password</a> ] with CredShare.app?
-        </span>
+  <section class="card" aria-labelledby="nf-title">
+    <p class="eyebrow">Error 404</p>
+    <h1 id="nf-title">Page not found</h1>
+    <p class="card-lead">There is nothing at this address. If you followed a link to a secret, it may have been unlocked already or expired; secrets are deleted after that, so nobody else can open it either.</p>
+    <div class="actions to-home">
+      <a href="/" class="btn btn-primary success-link-back">Share a secret</a>
     </div>
+  </section>
 {% endblock %}

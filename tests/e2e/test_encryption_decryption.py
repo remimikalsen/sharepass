@@ -36,7 +36,7 @@ def test_secret_sharing_flow(page: Page, base_url: str):
     # 2. Go to the index page and share a secret.
     #
     page.goto(base_url, timeout=10_000)
-    expect(page).to_have_title("CredShare.app - Secure password sharing")
+    expect(page).to_have_title("CredShare — Secure one-time password sharing")
 
     # Set your test secret and keys.
     secret_text = "This is a test secret."
@@ -51,10 +51,10 @@ def test_secret_sharing_flow(page: Page, base_url: str):
     # Click the "Share it!" button
     page.click("#upload-button")
 
-    # Wait for either success or error message.
+    # Wait for either success or error message (both start hidden).
     success_selector = "#success-message"
     error_selector = "#error-message"
-    page.wait_for_selector(f"{success_selector}, {error_selector}")
+    page.wait_for_selector(f"{success_selector}:not([hidden]), {error_selector}:not([hidden])")
 
     # If error message is visible, fail the test.
     if page.is_visible(error_selector):
@@ -83,15 +83,18 @@ def test_secret_sharing_flow(page: Page, base_url: str):
     #
     page.goto(landing_url, timeout=10_000)
     # Confirm that the page contains the expected header.
-    expect(page.locator("h2").first).to_have_text("Unlock the secret")
+    expect(page.locator("h1").first).to_have_text("Unlock the secret")
 
     #
     # 5. Attempt to unlock the secret using a wrong key.
     #
     page.fill("input#key", wrong_key)
     page.click("#unlock-button")
-    # Wait for an error message in the unlock page (e.g. in #download-key-error)
-    page.wait_for_selector("#download-key-error", timeout=5000)
+    # Wait for the inline error to be filled in (it is empty until a failed attempt).
+    page.wait_for_function(
+        "() => document.getElementById('download-key-error').textContent.trim().length > 0",
+        timeout=5000,
+    )
     wrong_key_error = page.inner_text("#download-key-error")
     assert wrong_key_error, "Expected an error message when using the wrong key."
     print("Error message for wrong key:", wrong_key_error)
@@ -111,9 +114,12 @@ def test_secret_sharing_flow(page: Page, base_url: str):
     # Clear the wrong key and enter the correct key.
     page.fill("input#key", correct_key)
     page.click("#unlock-button")
-    # Wait for the secret to be revealed in the element with id "secret-code"
-    page.wait_for_selector("#secret-code", timeout=5000)
+    # Wait for the secret panel to be shown and the secret to be in place.
+    page.wait_for_selector("#secret-unlocked-container:not([hidden])", timeout=5000)
     revealed_secret = page.inner_text("#secret-code")
+    # The secret is blurred until the reader asks for it; reveal it.
+    page.click("#toggle-visibility")
+    assert page.get_attribute("#secret-display", "data-revealed") == "true"
     assert (
         revealed_secret == secret_text
     ), f"Expected secret '{secret_text}' but got '{revealed_secret}'."

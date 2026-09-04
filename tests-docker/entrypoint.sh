@@ -25,9 +25,12 @@ elif [ "$1" = "test-unit" ]; then
     # Change to the tests directory
     cd tests
 
-    # Run unit tests with coverage and capture all output.
+    # Run unit tests with coverage and capture all output. Errors must not abort the
+    # script here (set -e), otherwise a failing run prints nothing for CI to show.
+    set +e
     PYTEST_OUTPUT=$(pytest --cov-report=xml:coverage.xml -m "not e2e" 2>&1)
     PYTEST_EXIT_CODE=$?
+    set -e
 
     # Generate the coverage badge SVG and capture its output.
     BADGE_OUTPUT=$(python generate_coverage_badge.py print)
