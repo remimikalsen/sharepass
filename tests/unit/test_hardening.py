@@ -1,13 +1,35 @@
 """Tests for the hardening, SEO and policy routes introduced with the September 2026 redesign."""
 
 import asyncio
+import base64
 import json
+import os
 
 import pytest
 import pytest_asyncio
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 import app.app as credshare
-from sharepass_cli import encrypt_secret
+
+
+def encrypt_secret(secret, key):
+    """Produce the JSON envelope the browser (and sharepass_cli.py) send to the server.
+
+    Duplicated here rather than imported from sharepass_cli, which is a repo-root helper
+    that is not copied into the test image.
+    """
+    salt, iv = os.urandom(16), os.urandom(12)
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=100000)
+    ciphertext = AESGCM(kdf.derive(key.encode())).encrypt(iv, secret.encode(), None)
+    return json.dumps(
+        {
+            "salt": base64.b64encode(salt).decode(),
+            "iv": base64.b64encode(iv).decode(),
+            "ciphertext": base64.b64encode(ciphertext).decode(),
+        }
+    )
 
 
 @pytest_asyncio.fixture

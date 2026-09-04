@@ -49,8 +49,9 @@ COPY VERSION ./
 COPY --from=builder /build/app/static/js/ ./static/js/
 
 # Application code stays owned by root so the app user cannot modify it at runtime.
-# Only the database directory (IP hash salt and SQLite file) is writable by appuser.
-RUN mkdir -p ./database && \
+# Only the database directory (IP hash salt and SQLite file) is writable by appuser. It is
+# recreated empty here so a database from the build context can never end up in the image.
+RUN rm -rf ./database && mkdir ./database && \
     chown appuser:appuser ./database
 
 # Switch to non-root user

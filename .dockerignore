@@ -25,3 +25,6 @@ sharepass_cli.py
 
 # Redesign kit (reference material, not part of the image)
 redesign/
+
+# Local database created by running the app or tests outside Docker; must never be baked in
+app/database/

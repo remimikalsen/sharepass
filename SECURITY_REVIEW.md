@@ -33,6 +33,7 @@ Regression tests: `tests/unit/test_hardening.py`, `tests/e2e/test_no_third_party
 | Low | Compose published port 8080 on all interfaces while trusting `X-Forwarded-For`; container had no `read_only`, `cap_drop` or `no-new-privileges`; pip left in the image | Port bound to `127.0.0.1`, hardening options added, application code root-owned, pip removed |
 | Info | Health check rendered the front page every 30 s and filled the access log; access log showed the proxy's address | `/healthz` (204, not logged); access logger reports the resolved client IP and redacts unlock codes from path and referrer |
 | Info | No index on `secrets.download_code` | Index created at start-up |
+| Medium | `app/database/` was not excluded from the Docker build context, so a local SQLite file and the per-instance IP-hash salt from the build machine were copied into the image as root-owned files. The container then failed to start with a read-only database, and the salt would have been shared by every deployment built from that machine | `app/database/` added to `.dockerignore`; the Dockerfile removes and recreates the directory empty before handing it to `appuser` |
 
 ## 2. Open observations from the branch review (low severity)
 
@@ -70,6 +71,7 @@ Verified present in the workflows:
 - `docker-compose.yml`: port bound to `127.0.0.1`, `read_only: true`, `cap_drop: [ALL]`, `no-new-privileges:true`, `tmpfs /tmp`, database on a named volume.
 - The redesign kit (`redesign/`) and development files are excluded from the build context via `.dockerignore`.
 - **Base images:** `node:25-alpine` and `python:3.14-slim` were about a year old at review time and are appropriate. **Open:** base image digests are not pinned.
+- **Accepted base-image findings:** the Debian 13 layer of `python:3.14-slim` carries three CRITICAL CVEs in `perl-base` (CVE-2026-13221, CVE-2026-42496, CVE-2026-8376) and a tail of HIGH findings in essential system packages (util-linux, ncurses, sqlite, systemd libraries), all marked by Debian as affected with no fix or fix deferred. `perl-base` is an Essential package and cannot be removed; CredShare never executes Perl. The three CRITICAL IDs are listed in `.trivyignore` with an expiry of 2026-12-04 and a stated reason, so the CI gate passes but the entries must be re-justified or removed when they expire. Everything installed by the application itself (Python packages) is clean, and `pip` and `setuptools` in the image are current.
 - **Recommendation:** terminate TLS at a reverse proxy, set `HTTPS_ONLY=true`, `PUBLIC_BASE_URL`, `TRUSTED_PROXY_COUNT` to match the number of proxies and, where possible, `TRUSTED_PROXY_IPS`.
 
 ## 6. Application configuration and headers
@@ -112,6 +114,7 @@ Verified present in the workflows:
 - Naive local timestamps: a DST change shifts deadlines by an hour.
 - In-memory salt fallback when the database directory is unwritable resets quotas on restart.
 - Clients behind large NATs share one quota.
+- Unfixed Debian CVEs in essential packages of the base image, listed above; re-evaluate when Debian ships fixes or when the base image changes.
 
 ---
 
@@ -155,6 +158,8 @@ Verified present in the workflows:
 - End-to-end (Playwright): 5, including the theme toggle's three states and the zero-third-party-request check with self-hosted fonts loaded.
 - `pip-audit -r requirements.txt`: no known vulnerabilities. `flake8` and `black`: clean.
 - Manual header inspection with curl; WCAG contrast computed for every colour pair in both themes.
+- `trivy fs` (vuln, secret, misconfig; all severities, dev dependencies included): clean. `trivy image` on the built image: 0 CRITICAL after the accepted `perl-base` entries; no fixable HIGH findings. OpenGrep SAST (`--config auto`): clean after three fixes (curl-to-shell replaced with `gh api`, `min-release-age=7` in `.npmrc`, sitemap built with ElementTree).
+- The built image was started with the compose hardening flags (`read_only`, `cap_drop ALL`, `no-new-privileges`, tmpfs `/tmp`, database volume) and exercised over HTTP.
 
 ## Manual testing recommendations
 
