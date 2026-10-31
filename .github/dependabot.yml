@@ -1,0 +1,35 @@
+# Keeps the pinned Python and npm dependencies, the SHA-pinned GitHub Actions and the Docker
+# base images current. Every security-relevant pin in this repository is covered here, so a
+# published fix shows up as a pull request instead of waiting for the next manual audit.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /tests-docker
+    schedule:
+      interval: weekly
