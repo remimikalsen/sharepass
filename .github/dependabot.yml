@@ -36,6 +36,11 @@ updates:
     groups:
       docker-images:
         patterns: ["*"]
+    # Dockerfile.tests starts from ghcr.io/remimikalsen/python-testbed, an image the tests
+    # workflow builds locally and never pushes. Dependabot cannot resolve it and aborts the
+    # whole Docker job on it, so the file is left out.
+    exclude-paths:
+      - tests-docker/Dockerfile.tests
     ignore:
       # A new Python line (3.14 -> 3.15) is a deliberate decision, not a routine bump;
       # the floating "-slim" tag already picks up patch releases on every build.
