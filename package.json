@@ -16,7 +16,7 @@
   "devDependencies": {
     "shx": "^0.4.0",
     "webpack": "^5.97.1",
-    "webpack-cli": "^6.0.1"
+    "webpack-cli": "^7.2.3"
   },
   "overrides": {
     "glob": "^10.0.0"
