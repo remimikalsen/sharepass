@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import asyncio
 import hmac
 import secrets
 import string
@@ -75,6 +76,7 @@ ANALYTICS_SCRIPT_CSP_RAW = os.getenv("ANALYTICS_SCRIPT_CSP", "")
 MAX_CLIENT_SIZE = 1024 * 768  # 0.75MB
 MAX_SECRET_SIZE = 1024 * 512  # 0.5MB
 MAX_KEY_LENGTH = 1024  # Maximum key length in characters
+QUOTA_EXCEEDED_MESSAGE = "You have exceeded the maximum number of shares for today."
 
 DATABASE_DIR = os.getenv("DATABASE_DIR", os.path.join(APP_DIR, "database"))
 DATABASE_PATH = os.path.join(DATABASE_DIR, "secrets.db")
@@ -285,9 +287,23 @@ def resolve_client_ip(request):
     if proxy_is_trusted(request):
         forwarded_for = _headers(request).get("X-Forwarded-For", "")
         hops = [hop.strip() for hop in forwarded_for.split(",") if hop.strip()]
-        if hops:
-            ip = hops[-TRUSTED_PROXY_COUNT] if len(hops) >= TRUSTED_PROXY_COUNT else hops[0]
+        # Fewer hops than trusted proxies means a proxy did not append its entry, so every
+        # entry present may have been supplied by the client; fall back to the peer address.
+        if len(hops) >= TRUSTED_PROXY_COUNT:
+            ip = hops[-TRUSTED_PROXY_COUNT]
     return ip
+
+
+def loggable_client_ip(request):
+    """The resolved client address for the access log, or '-' when it is not an address.
+
+    A client that reaches the app directly controls X-Forwarded-For, so the value is parsed
+    before it is written: nothing but an IP address can be planted in the log's IP column.
+    """
+    try:
+        return str(ipaddress.ip_address(resolve_client_ip(request)))
+    except ValueError:
+        return "-"
 
 
 def get_client_ip(request):
@@ -319,7 +335,10 @@ def public_base_url(request):
         scheme = "https"
     if not _HOST_RE.match(host):
         return ""
-    return str(URL.build(scheme=scheme, authority=host))
+    try:
+        return str(URL.build(scheme=scheme, authority=host))
+    except ValueError:  # e.g. a port outside 0-65535 that passed the regex
+        return ""
 
 
 def expected_hosts(request):
@@ -373,7 +392,7 @@ class ClientIPAccessLogger(AbstractAccessLogger):
             started = datetime.now().astimezone() - timedelta(seconds=elapsed)
             self.logger.info(
                 '%s [%s] "%s %s HTTP/%s.%s" %s %s "%s" "%s"',
-                resolve_client_ip(request) or "-",
+                loggable_client_ip(request),
                 started.strftime("%d/%b/%Y:%H:%M:%S %z"),
                 request.method,
                 redact_download_codes(request.path_qs),
@@ -490,6 +509,61 @@ def validate_json_content_type(request):
     return "application/json" in content_type.lower()
 
 
+async def read_json_object(request):
+    """Parse the request body as a JSON object.
+
+    Returns (data, None) on success or (None, response) with the 400 to send. Bodies that
+    are valid JSON but not an object (a list, a string) would otherwise raise inside the
+    handler and surface as a 500.
+    """
+    if not validate_json_content_type(request):
+        return None, web.json_response(
+            {"error": "Content-Type must be application/json."}, status=400
+        )
+    try:
+        data = await request.json()
+    except Exception:
+        return None, web.json_response({"error": "Invalid JSON."}, status=400)
+    if not isinstance(data, dict):
+        return None, web.json_response({"error": "JSON body must be an object."}, status=400)
+    return data, None
+
+
+async def read_multipart_text(field, limit):
+    """Read a multipart text field, giving up as soon as it exceeds `limit` bytes.
+
+    request.multipart() streams the body and is not covered by client_max_size, so a
+    single oversized field would otherwise be buffered in full before any size check.
+    Returns None when the limit is exceeded.
+    """
+    data = bytearray()
+    while True:
+        chunk = await field.read_chunk()
+        if not chunk:
+            break
+        data.extend(chunk)
+        if len(data) > limit:
+            return None
+    return field.decode(bytes(data)).decode(field.get_charset(default="utf-8"))
+
+
+def decrypt_envelope(encrypted_secret_json, key):
+    """Derive the key and decrypt the stored envelope; raises on a wrong key or bad data."""
+    encrypted_data = json.loads(encrypted_secret_json)
+    salt = base64.b64decode(encrypted_data["salt"])
+    iv = base64.b64decode(encrypted_data["iv"])
+    ciphertext = base64.b64decode(encrypted_data["ciphertext"])
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,  # 256-bit key
+        salt=salt,
+        iterations=100000,
+        backend=default_backend(),
+    )
+    aes_key = kdf.derive(key.encode())
+    return AESGCM(aes_key).decrypt(iv, ciphertext, None).decode()
+
+
 def humanize_minutes(minutes):
     """60 -> 'an hour', 120 -> '2 hours', 90 -> '90 minutes'."""
     if minutes == 60:
@@ -555,34 +629,49 @@ async def index(request):
 
 
 async def store_secret(encrypted_secret, ip):
-    """Common function to store a secret in the database."""
+    """Store a secret and count it against the client's quota in one transaction.
+
+    Returns (download_code, error, status). The quota is checked again under the write
+    lock: ip_reached_quota in the handler is only a fast path, and without this check a
+    burst of concurrent requests from one client would all pass it before any was counted.
+    """
+    if not isinstance(encrypted_secret, str) or not encrypted_secret:
+        return None, "Missing encrypted_secret field.", 400
     if len(encrypted_secret) > MAX_SECRET_SIZE:
-        return None, f"Secret too large. Maximum size is {MAX_SECRET_SIZE} bytes."
+        return None, f"Secret too large. Maximum size is {MAX_SECRET_SIZE} bytes.", 400
 
     secret_id = str(uuid.uuid4())
     download_code = generate_download_code()
     upload_time = datetime.now()
+    renewal_cutoff = upload_time - timedelta(minutes=QUOTA_RENEWAL_MINUTES)
 
     async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        # BEGIN IMMEDIATE takes the write lock now, so the check and the insert are atomic.
+        await db.execute("BEGIN IMMEDIATE")
+        async with db.execute("SELECT uses, last_access FROM ip_usage WHERE ip=?", (ip,)) as cursor:
+            row = await cursor.fetchone()
+        in_window = bool(row) and row[1] >= renewal_cutoff
+        if in_window and int(row[0]) >= MAX_USES_QUOTA:
+            await db.rollback()
+            return None, QUOTA_EXCEEDED_MESSAGE, 429
         await db.execute(
             "INSERT INTO secrets (id, secret, attempts, download_code, upload_time) VALUES (?, ?, ?, ?, ?)",
             (secret_id, encrypted_secret, 0, download_code, upload_time),
         )
-        async with db.execute("SELECT 1 FROM ip_usage WHERE ip=?", (ip,)) as cursor:
-            exists = await cursor.fetchone()
-        if exists:
+        if in_window:
             await db.execute(
                 "UPDATE ip_usage SET uses=uses+1, last_access=? WHERE ip=?",
                 (upload_time, ip),
             )
         else:
             await db.execute(
-                "INSERT INTO ip_usage (ip, uses, last_access) VALUES (?, 1, ?)",
+                "INSERT INTO ip_usage (ip, uses, last_access) VALUES (?, 1, ?) "
+                "ON CONFLICT(ip) DO UPDATE SET uses=1, last_access=excluded.last_access",
                 (ip, upload_time),
             )
         await db.commit()
 
-    return download_code, None
+    return download_code, None, 200
 
 
 async def upload_secret(request):
@@ -590,20 +679,31 @@ async def upload_secret(request):
         return web.Response(text="Cross-site requests are not allowed.", status=403)
     ip = get_client_ip(request)
     if await ip_reached_quota(ip):
-        return web.Response(
-            text="You have exceeded the maximum number of shares for today.", status=429
-        )
+        return web.Response(text=QUOTA_EXCEEDED_MESSAGE, status=429)
+
+    too_large = web.Response(
+        text=f"Secret too large. Maximum size is {MAX_SECRET_SIZE} bytes.", status=413
+    )
+    # The multipart reader is not bounded by client_max_size, so the declared length is
+    # checked up front and the field itself is read with a cap.
+    content_length = getattr(request, "content_length", None)
+    if content_length is not None and content_length > MAX_CLIENT_SIZE:
+        return too_large
+    if not request.content_type.startswith("multipart/"):
+        return web.Response(text="Expected a multipart form.", status=400)
 
     reader = await request.multipart()
     field = await reader.next()
     if field is None or field.name != "encryptedsecret":
         return web.Response(text="No secret field in form.", status=400)
 
-    secret = await field.text()
+    secret = await read_multipart_text(field, MAX_SECRET_SIZE)
+    if secret is None:
+        return too_large
 
-    download_code, error = await store_secret(secret, ip)
+    download_code, error, status = await store_secret(secret, ip)
     if error:
-        return web.Response(text=error, status=400)
+        return web.Response(text=error, status=status)
 
     download_url = f"/unlock/{download_code}"
     return web.Response(text=download_url, headers={"Cache-Control": "no-store"})
@@ -658,11 +758,20 @@ async def unlock_secret_logic(download_code, key):
         }
 
     async with aiosqlite.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES) as db:
+        # Reserve an attempt before decrypting: the counter is incremented by the same
+        # statement that reads the row, so concurrent wrong keys each consume an attempt
+        # instead of all reading the same count and writing count + 1. Rows past their
+        # expiry are refused here too, without waiting for the purge job. (RETURNING
+        # needs SQLite 3.35, from 2021.)
+        not_before = datetime.now() - timedelta(minutes=SECRET_EXPIRY_MINUTES)
         async with db.execute(
-            "SELECT secret, attempts FROM secrets WHERE download_code=?",
-            (download_code,),
+            "UPDATE secrets SET attempts = attempts + 1 "
+            "WHERE download_code=? AND attempts < ? AND upload_time >= ? "
+            "RETURNING secret, attempts",
+            (download_code, MAX_ATTEMPTS, not_before),
         ) as cursor:
             row = await cursor.fetchone()
+        await db.commit()
         if not row:
             return False, {
                 "error": "Invalid download code or key.",
@@ -671,25 +780,9 @@ async def unlock_secret_logic(download_code, key):
         encrypted_secret_json, attempts = row
 
         try:
-            encrypted_data = json.loads(encrypted_secret_json)
-            salt = base64.b64decode(encrypted_data["salt"])
-            iv = base64.b64decode(encrypted_data["iv"])
-            ciphertext = base64.b64decode(encrypted_data["ciphertext"])
-
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,  # 256-bit key
-                salt=salt,
-                iterations=100000,
-                backend=default_backend(),
-            )
-            aes_key = kdf.derive(key.encode())
-            aesgcm = AESGCM(aes_key)
-            decrypted_bytes = aesgcm.decrypt(iv, ciphertext, None)
-            decrypted_secret = decrypted_bytes.decode()
+            # Key derivation takes tens of milliseconds; keep it off the event loop.
+            decrypted_secret = await asyncio.to_thread(decrypt_envelope, encrypted_secret_json, key)
         except Exception:
-            # Increase the failure count.
-            attempts += 1
             if attempts >= MAX_ATTEMPTS:
                 await db.execute("DELETE FROM secrets WHERE download_code=?", (download_code,))
                 await db.commit()
@@ -697,18 +790,11 @@ async def unlock_secret_logic(download_code, key):
                     "error": "Incorrect key. Maximum attempts reached. Secret deleted.",
                     "status": 400,
                 }
-            else:
-                await db.execute(
-                    "UPDATE secrets SET attempts=? WHERE download_code=?",
-                    (attempts, download_code),
-                )
-                await db.commit()
-                remaining = MAX_ATTEMPTS - attempts
-                return False, {
-                    "error": "Incorrect key.",
-                    "status": 400,
-                    "attempts_remaining": remaining,
-                }
+            return False, {
+                "error": "Incorrect key.",
+                "status": 400,
+                "attempts_remaining": MAX_ATTEMPTS - attempts,
+            }
 
         # Single use is decided by the delete, not the select: two concurrent requests
         # with the right key both decrypt, but only the one that removes the row wins.
@@ -739,14 +825,9 @@ async def unlock_secret(request):
     if is_cross_site(request):
         return web.json_response({"error": "Cross-site requests are not allowed."}, status=403)
 
-    # Validate Content-Type header
-    if not validate_json_content_type(request):
-        return web.json_response({"error": "Content-Type must be application/json."}, status=400)
-
-    try:
-        data = await request.json()
-    except Exception:
-        return web.json_response({"error": "Invalid JSON."}, status=400)
+    data, error_response = await read_json_object(request)
+    if error_response:
+        return error_response
 
     download_code = data.get("download_code")
     key = data.get("key")
@@ -770,27 +851,19 @@ async def api_lock_secret(request):
         return web.json_response({"error": "Cross-site requests are not allowed."}, status=403)
     ip = get_client_ip(request)
     if await ip_reached_quota(ip):
-        return web.json_response(
-            {"error": "You have exceeded the maximum number of shares for today."},
-            status=429,
-        )
+        return web.json_response({"error": QUOTA_EXCEEDED_MESSAGE}, status=429)
 
-    # Validate Content-Type header
-    if not validate_json_content_type(request):
-        return web.json_response({"error": "Content-Type must be application/json."}, status=400)
-
-    try:
-        data = await request.json()
-    except Exception:
-        return web.json_response({"error": "Invalid JSON."}, status=400)
+    data, error_response = await read_json_object(request)
+    if error_response:
+        return error_response
 
     encrypted_secret = data.get("encrypted_secret")
     if not encrypted_secret:
         return web.json_response({"error": "Missing encrypted_secret field."}, status=400)
 
-    download_code, error = await store_secret(encrypted_secret, ip)
+    download_code, error, status = await store_secret(encrypted_secret, ip)
     if error:
-        return web.json_response({"error": error}, status=400)
+        return web.json_response({"error": error}, status=status)
 
     download_url = f"/unlock/{download_code}"
     return web.json_response(
@@ -808,14 +881,9 @@ async def api_unlock_secret(request):
     if is_cross_site(request):
         return web.json_response({"error": "Cross-site requests are not allowed."}, status=403)
 
-    # Validate Content-Type header
-    if not validate_json_content_type(request):
-        return web.json_response({"error": "Content-Type must be application/json."}, status=400)
-
-    try:
-        data = await request.json()
-    except Exception:
-        return web.json_response({"error": "Invalid JSON."}, status=400)
+    data, error_response = await read_json_object(request)
+    if error_response:
+        return error_response
 
     download_code = data.get("download_code")
     key = data.get("key")
@@ -941,7 +1009,10 @@ async def robots_txt(request):
 
 
 async def sitemap_xml(request):
-    base_url = public_base_url(request) or str(request.url.origin())
+    try:
+        base_url = public_base_url(request) or str(request.url.origin())
+    except ValueError:  # Host header that yarl refuses to build a URL from
+        return web.Response(status=400, text="Bad host")
     urlset = ET.Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
     for page in ("/", "/privacy", "/cookies"):
         ET.SubElement(ET.SubElement(urlset, "url"), "loc").text = base_url + page
@@ -1021,6 +1092,8 @@ async def security_headers_middleware(request, handler):
     response.headers["X-Content-Type-Options"] = "nosniff"
     # Prevent clickjacking
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    # Keep this browsing context isolated from windows opened by other origins
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     # Use HSTS if serving over HTTPS
     if HTTPS_ONLY:
         response.headers["Strict-Transport-Security"] = (
@@ -1099,29 +1172,35 @@ async def create_app(purge_interval_minutes=PURGE_INTERVAL_MINUTES):
     # Run initial cleanup
     await purge_expired()
 
-    # Schedule periodic background cleanup
+    # Schedule periodic background cleanup. The scheduler binds to the event loop that is
+    # running when it starts, so it is started from on_startup, i.e. on the loop that
+    # serves requests. Started here instead, it would belong to whichever loop built the
+    # app; when that loop is closed before serving begins the purge job never fires.
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(purge_expired, "interval", minutes=purge_interval_minutes)
-    scheduler.start()
+    app["scheduler"] = scheduler
+
+    async def start_scheduler(app):
+        scheduler.add_job(purge_expired, "interval", minutes=purge_interval_minutes)
+        scheduler.start()
 
     async def shutdown_scheduler(app):
-        scheduler.shutdown(wait=False)
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
 
+    app.on_startup.append(start_scheduler)
     app.on_cleanup.append(shutdown_scheduler)
 
     return app
 
 
 if __name__ == "__main__":
-    import asyncio
-
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
-    app = asyncio.run(create_app())
+    # run_app awaits the factory on the loop that serves requests.
     # Binding to 0.0.0.0 is required for container deployment
     web.run_app(
-        app,
+        create_app(),
         host="0.0.0.0",  # nosec B104
         port=8080,
         access_log_class=ClientIPAccessLogger,

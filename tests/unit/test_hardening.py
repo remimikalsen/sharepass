@@ -1,6 +1,8 @@
 """Tests for the hardening, SEO and policy routes introduced with the September 2026 redesign."""
 
 import asyncio
+
+import aiohttp
 import base64
 import json
 import os
@@ -280,3 +282,116 @@ async def test_json_endpoints_are_not_cacheable(client):
     assert resp.status == 400
     assert resp.headers["Cache-Control"] == "no-store"
     assert (await resp.json())["attempts_remaining"] == credshare.MAX_ATTEMPTS - 1
+
+
+# --- October 2026 audit: races, limits and robustness --------------------------------
+
+
+async def test_oversized_multipart_upload_is_rejected_with_413(client):
+    """request.multipart() bypasses client_max_size, so the handler must enforce it itself."""
+    oversized = "x" * (credshare.MAX_CLIENT_SIZE + 256 * 1024)
+
+    def form():
+        data = aiohttp.FormData(default_to_multipart=True)
+        data.add_field("encryptedsecret", oversized)
+        return data
+
+    # Declared length over the limit: refused before the body is parsed.
+    resp = await client.post("/lock", data=form())
+    assert resp.status == 413
+    assert resp.headers.get("Content-Security-Policy")
+    # Chunked transfer has no declared length: refused while the field is being read.
+    resp = await client.post("/lock", data=form(), chunked=True)
+    assert resp.status == 413
+
+
+async def test_concurrent_wrong_keys_cannot_exceed_max_attempts(client):
+    """Attempts must be reserved atomically; a burst of wrong keys may not reset the counter."""
+    code = await _lock(client, "guarded", "right")
+    burst = [
+        client.post("/api/unlock", json={"download_code": code, "key": f"wrong-{i}"})
+        for i in range(credshare.MAX_ATTEMPTS * 4)
+    ]
+    responses = await asyncio.gather(*burst)
+    assert all(r.status in (400, 404) for r in responses)
+    tried = [r for r in responses if (await r.json()).get("error", "").startswith("Incorrect key")]
+    assert len(tried) <= credshare.MAX_ATTEMPTS
+    # The burst used up every attempt, so even the right key must now fail.
+    resp = await client.post("/api/unlock", json={"download_code": code, "key": "right"})
+    assert resp.status == 404
+
+
+async def test_concurrent_shares_cannot_exceed_quota(client, monkeypatch):
+    monkeypatch.setattr(credshare, "MAX_USES_QUOTA", 3)
+    burst = [
+        client.post("/api/lock", json={"encrypted_secret": encrypt_secret("s", "k")})
+        for _ in range(12)
+    ]
+    statuses = [r.status for r in await asyncio.gather(*burst)]
+    assert statuses.count(200) == 3, statuses
+    assert statuses.count(429) == 9, statuses
+
+
+async def test_expired_secret_cannot_be_unlocked_before_purge(client, monkeypatch):
+    import sqlite3
+    from datetime import datetime, timedelta
+
+    import aiosqlite
+
+    code = await _lock(client, "stale", "k")
+    stale = datetime.now() - timedelta(minutes=credshare.SECRET_EXPIRY_MINUTES + 1)
+    async with aiosqlite.connect(
+        credshare.DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES
+    ) as db:
+        await db.execute("UPDATE secrets SET upload_time=? WHERE download_code=?", (stale, code))
+        await db.commit()
+    resp = await client.post("/api/unlock", json={"download_code": code, "key": "k"})
+    assert resp.status == 404
+
+
+async def test_json_endpoints_reject_malformed_bodies(client):
+    """Bodies that parse as JSON but are not the expected shape must be 400, never 500."""
+    for body in ([1, 2], "text", {"encrypted_secret": 5}, {"encrypted_secret": ["a"]}):
+        resp = await client.post("/api/lock", json=body)
+        assert resp.status == 400, (body, resp.status)
+    for body in ([1, 2], {"download_code": ["x"], "key": "k"}, {"download_code": "x", "key": 7}):
+        resp = await client.post("/api/unlock", json=body)
+        assert resp.status == 400, (body, resp.status)
+        resp = await client.post("/unlock_secret", json=body)
+        assert resp.status == 400, (body, resp.status)
+
+
+def test_forwarded_for_with_too_few_hops_falls_back_to_remote(monkeypatch):
+    monkeypatch.setattr(credshare, "TRUSTED_PROXY_COUNT", 2)
+    monkeypatch.setattr(credshare, "TRUSTED_PROXY_IPS", [])
+    req = Req(remote="10.0.0.5", headers={"X-Forwarded-For": "1.2.3.4"})
+    assert credshare.resolve_client_ip(req) == "10.0.0.5"
+
+
+def test_public_base_url_survives_out_of_range_port(monkeypatch):
+    monkeypatch.setattr(credshare, "PUBLIC_BASE_URL", "")
+    monkeypatch.setattr(credshare, "TRUSTED_PROXY_COUNT", 0)
+    assert credshare.public_base_url(Req(host="credshare.app:99999")) == ""
+    assert credshare.public_base_url(Req(host="credshare.app:8080")) == "http://credshare.app:8080"
+
+
+def test_logged_client_ip_is_a_parsed_address(monkeypatch):
+    monkeypatch.setattr(credshare, "TRUSTED_PROXY_COUNT", 1)
+    monkeypatch.setattr(credshare, "TRUSTED_PROXY_IPS", [])
+    assert credshare.loggable_client_ip(Req(headers={"X-Forwarded-For": "203.0.113.9"})) == "203.0.113.9"
+    assert credshare.loggable_client_ip(Req(headers={"X-Forwarded-For": "1.2.3.4 fake=1"})) == "-"
+    assert credshare.loggable_client_ip(Req(headers={"X-Forwarded-For": "\x1b[31m"})) == "-"
+    assert credshare.loggable_client_ip(Req(remote="")) == "-"
+
+
+async def test_cross_origin_opener_policy_is_set(client):
+    resp = await client.get("/")
+    assert resp.headers["Cross-Origin-Opener-Policy"] == "same-origin"
+
+
+async def test_purge_scheduler_runs_on_the_serving_loop(client):
+    """The purge job must be bound to the loop that serves requests, or it never fires."""
+    scheduler = client.app["scheduler"]
+    assert scheduler.running
+    assert scheduler._eventloop is asyncio.get_running_loop()
+    assert [job.func for job in scheduler.get_jobs()] == [credshare.purge_expired]
