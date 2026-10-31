@@ -1,8 +1,8 @@
 # Security Review - CredShare (sharepass)
 
-**Review date:** 2026-09-04 (supersedes the review of 2025-01-28)
-**Reviewer:** AI-assisted security audit (Claude), verified locally with pip-audit, flake8, the unit suite (48 tests) and the Playwright end-to-end suite (5 tests)
-**Project:** CredShare, version 1.3.17 at the time of review, branch `redesign`
+**Review date:** 2026-10-31 (section 0; the September 2026 review follows unchanged except where marked)
+**Reviewer:** AI-assisted security audit (Claude), verified locally with pip-audit, npm audit, bandit, OpenGrep, Trivy (repository and image), flake8, the unit suite (60 tests) and the Playwright end-to-end suite (5 tests)
+**Project:** CredShare, version 1.3.18 at the time of review, branch `security-update-oct-2026`
 
 ---
 
@@ -13,6 +13,36 @@ CredShare is a small aiohttp service for one-time secret sharing. Secrets are en
 This review went a level deeper alongside the September 2026 redesign and found one high and several medium weaknesses, all fixed in the same change set with regression tests. A focused review of the finished branch found no further high or medium issues; three low-severity observations remain open and are listed below.
 
 **Overall security grade after remediation: A-**. Residual risks are inherent to an anonymous secret-sharing service and are listed in section 9.
+
+---
+
+## 0. October 2026 update
+
+Two months after the redesign, the dependency scanners reported new advisories and a code review of the request paths found concurrency and resource-limit gaps that scanners cannot see. Every finding below was reproduced with a failing test before the fix; the regression tests are in `tests/unit/test_hardening.py` and `tests/unit/test_create_secret.py`.
+
+| Severity | Finding | Fix |
+|----------|---------|-----|
+| High | aiohttp 3.14.3 carried nine advisories: denial of service via a missing initial request timeout (CVE-2026-111064), file-descriptor exhaustion in multipart handling (CVE-2026-111066), unbounded memory and CPU use (GHSA-2g87-pp6c-29x5), request smuggling through ambiguous framing (CVE-2026-111750), scheme spoofing (CVE-2026-111748) and three cookie issues. multidict 6.7.1 leaked memory in items-view operations (CVE-2026-104874) | aiohttp 3.14.5, multidict 7.2.1, cryptography 50.0.2 (wheels rebuilt against OpenSSL 4.0.3); `requirements.txt` recompiled with pip-compile |
+| High | `/lock` read the multipart body through `request.multipart()`, which aiohttp does not cover with `client_max_size`. A single oversized field was buffered in full before the size check in `store_secret`, so one request could consume hundreds of megabytes | The declared `Content-Length` is checked first and the field is read in chunks with a cap; both paths answer 413. A non-multipart body now gets 400 instead of raising a 500 |
+| Medium | The wrong-key counter was read, then written back as count + 1. Concurrent wrong keys all read the same count, so a burst of 20 attempts left the counter at 1 and `MAX_ATTEMPTS` could be bypassed indefinitely | The attempt is reserved atomically: `UPDATE … SET attempts = attempts + 1 … RETURNING` runs before decryption, so each request consumes exactly one attempt |
+| Medium | The share quota was check-then-insert. Twelve concurrent shares against a quota of three all succeeded | The quota is checked again and counted inside a `BEGIN IMMEDIATE` transaction in `store_secret` |
+| Medium | The purge scheduler was started inside `create_app()`, which `__main__` ran under `asyncio.run()`. That loop is closed before `web.run_app` starts the serving loop, so the periodic purge never fired: only the start-up purge ran, and expired secrets and quota rows stayed in the database until the next restart. Verified with a one-minute interval: a stale row survived 80 s | The scheduler starts from `on_startup` on the serving loop, `run_app` awaits the factory, and a test checks the job is bound to the running loop. Re-run of the probe: the stale row was gone after the first interval |
+| Medium | An expired secret that the purge had not yet removed could still be unlocked (noted as open in September) | Expiry is enforced in the unlock statement itself |
+| Medium | The builder stage used `node:25-alpine`; Node 25 reached end of life on 1 June 2026 and receives no security fixes | `node:26-alpine` (active LTS since 28 October 2026, supported to April 2029) |
+| Medium | `python:3.14-slim` lagged behind Debian: 14 HIGH findings with fixes published (openssl, libsqlite3, libpcre2, gzip, perl-base), and the three perl-base CRITICAL entries in `.trivyignore` now have fixes | `apt-get upgrade` in the final image stage; the `.trivyignore` entries were removed, so the file is empty again |
+| Low | The three open observations from section 2: the access log printed the resolved address verbatim, and a `Host` with an out-of-range port raised inside `URL.build` and returned 500 | `loggable_client_ip()` parses the address and logs `-` otherwise; `ValueError` is caught in `public_base_url` and `sitemap_xml` |
+| Low | With fewer `X-Forwarded-For` entries than `TRUSTED_PROXY_COUNT`, the leftmost (client-supplied) entry was used | Falls back to the peer address |
+| Low | JSON bodies that parsed but were not objects (a list, a string) raised inside the handlers and returned 500 | `read_json_object()` answers 400 |
+| Low | PBKDF2 key derivation ran on the event loop for every unlock attempt, stalling all other requests for tens of milliseconds each | Runs in a worker thread via `asyncio.to_thread` |
+| Low | No `Cross-Origin-Opener-Policy` | `same-origin` added to the header set |
+| Info | The pip-audit fallback in `security.yaml` used `--format table`, which pip-audit rejects, so a failing audit printed usage text instead of the findings | `--format columns` |
+| Info | `tests.yaml` asked for `contents: write` but only uploads artifacts | `contents: read` |
+| Info | No Dependabot (open since September); GitHub Actions pins were one to two releases behind | `.github/dependabot.yml` for pip, npm, GitHub Actions and Docker; setup-node, upload-artifact, create-github-app-token, setup-buildx and codeql-action re-pinned to current SHAs |
+| Info | npm: moderate advisory in fast-uri (build-time only, via webpack); dev tooling carried advisories in filelock, urllib3 and virtualenv | `npm audit fix`, webpack 5.112; `requirements-dev.txt` recompiled |
+
+Verification on the review date: pip-audit clean for both requirement files; `npm audit` 0 findings; bandit and OpenGrep (`--config auto`, 498 rules) clean; `trivy fs` clean; `trivy image` on the rebuilt image 0 CRITICAL and 0 HIGH with a fix available; 60 unit tests and 5 end-to-end tests pass; the image was started with the compose hardening flags and exercised over HTTP (lock, wrong key, unlock, repeat unlock, list body, urlencoded body, 900 KB multipart, forged `X-Forwarded-For`).
+
+**Still open after this update:** security-event logging (section 9); base image digests not pinned (Dependabot now proposes digest updates once pins exist); the PBKDF2 iteration count of 100 000 is below the current OWASP guidance of 600 000 for PBKDF2-HMAC-SHA256. Raising it requires an `iterations` field in the envelope so that secrets stored under the old count remain unlockable, and multiplies the per-unlock CPU cost accordingly; it is a design change rather than a patch and is left for a separate change.
 
 ---
 
@@ -37,7 +67,7 @@ Regression tests: `tests/unit/test_hardening.py`, `tests/e2e/test_no_third_party
 
 ## 2. Open observations from the branch review (low severity)
 
-A separate review of the finished branch, focused on newly introduced code, found no high or medium issues. These three remain open:
+A separate review of the finished branch, focused on newly introduced code, found no high or medium issues. These three remained open in September; the first two were fixed in October (section 0), the third stands:
 
 | Severity | Observation | Recommendation |
 |----------|-------------|----------------|
@@ -51,7 +81,7 @@ A separate review of the finished branch, focused on newly introduced code, foun
 
 - **Python:** `requirements.txt` is pinned via pip-compile; dev and test tooling live in `requirements-dev.txt` and are not installed in the image. `pip-audit -r requirements.txt` reported no known vulnerabilities on the review date. pip-audit and bandit run in `.github/workflows/security.yaml` and as pre-commit hooks.
 - **JavaScript:** `.npmrc` sets `ignore-scripts=true`, `strict-ssl=true`, `audit-level=high` and `package-lock=true`. `npm audit --audit-level=high` runs in the Dockerfile before install and in every workflow. The only runtime dependency is highlight.js (core plus JSON and YAML grammars); `feather-icons` and `prismjs` were removed in the redesign. The `glob` override remains.
-- GitHub Actions are pinned to full commit SHAs with the version in a trailing comment (done 2026-09-04; the previous `trivy-action@0.33.1` reference pointed at a tag that does not exist, the tag is `v0.33.1`). **Open:** there is no Dependabot configuration, so base images, actions and dependencies are refreshed manually.
+- GitHub Actions are pinned to full commit SHAs with the version in a trailing comment (done 2026-09-04; the previous `trivy-action@0.33.1` reference pointed at a tag that does not exist, the tag is `v0.33.1`). Dependabot was added in October 2026 for pip, npm, GitHub Actions and Docker base images.
 
 ## 4. Scanning and CI
 
@@ -70,8 +100,8 @@ Verified present in the workflows:
 - Health check calls `/healthz` on loopback with Python only (no curl in the image).
 - `docker-compose.yml`: port bound to `127.0.0.1`, `read_only: true`, `cap_drop: [ALL]`, `no-new-privileges:true`, `tmpfs /tmp`, database on a named volume.
 - The redesign kit (`redesign/`) and development files are excluded from the build context via `.dockerignore`.
-- **Base images:** `node:25-alpine` and `python:3.14-slim` were about a year old at review time and are appropriate. **Open:** base image digests are not pinned.
-- **Accepted base-image findings:** the Debian 13 layer of `python:3.14-slim` carries three CRITICAL CVEs in `perl-base` (CVE-2026-13221, CVE-2026-42496, CVE-2026-8376) and a tail of HIGH findings in essential system packages (util-linux, ncurses, sqlite, systemd libraries), all marked by Debian as affected with no fix or fix deferred. `perl-base` is an Essential package and cannot be removed; CredShare never executes Perl. The three CRITICAL IDs are listed in `.trivyignore` with an expiry of 2026-12-04 and a stated reason, so the CI gate passes but the entries must be re-justified or removed when they expire. Everything installed by the application itself (Python packages) is clean, and `pip` and `setuptools` in the image are current.
+- **Base images:** `node:26-alpine` (since October 2026; Node 25 went end of life in June 2026) and `python:3.14-slim`. The final stage runs `apt-get upgrade` so Debian security updates published after the base image are included. **Open:** base image digests are not pinned.
+- **Accepted base-image findings:** the three `perl-base` CRITICAL CVEs accepted in September (CVE-2026-13221, CVE-2026-42496, CVE-2026-8376) were fixed by Debian in October and are pulled in by the upgrade step; `.trivyignore` is empty again. What remains in the Debian layer is a tail of HIGH findings in essential system packages (util-linux, ncurses, systemd libraries) that Debian marks as affected with no fix. Everything installed by the application itself (Python packages) is clean, and `setuptools` in the image is current.
 - **Recommendation:** terminate TLS at a reverse proxy, set `HTTPS_ONLY=true`, `PUBLIC_BASE_URL`, `TRUSTED_PROXY_COUNT` to match the number of proxies and, where possible, `TRUSTED_PROXY_IPS`.
 
 ## 6. Application configuration and headers
@@ -120,15 +150,14 @@ Verified present in the workflows:
 
 ## Priority recommendations
 
+Items 1, 2, 4 and 6 of the September list were done in October 2026 (section 0). Remaining:
+
 **Medium**
-1. Validate the logged client address with `ipaddress.ip_address()` and fall back to `-` (section 2).
-2. Catch `ValueError` from `URL.build` in `public_base_url` (section 2).
-3. Add security-event logging for failed unlocks and quota rejections, or rely on the access log by policy.
+1. Add security-event logging for failed unlocks and quota rejections, or rely on the access log by policy.
+2. Raise the PBKDF2 iteration count with a versioned envelope (section 0).
 
 **Low**
-4. Add Dependabot for pip, npm, GitHub Actions and Docker base images so the SHA pins stay current.
-5. Pin base image digests.
-6. Consider checking expiry in the unlock handler for a hard cut-off.
+3. Pin base image digests.
 
 ---
 
@@ -145,9 +174,12 @@ Verified present in the workflows:
 - [x] Atomic single-use unlock
 - [x] Self-hosted assets, zero third-party requests, verified by test
 - [x] Privacy and cookie policies checked against code
+- [x] Request size enforced on the multipart upload path
+- [x] Atomic attempt counting and quota accounting
+- [x] Periodic purge verified to run on the serving loop
 - [ ] Security-event logging
 - [x] Actions pinned to commit SHAs
-- [ ] Dependabot
+- [x] Dependabot
 - [ ] Base image digests pinned
 
 ---

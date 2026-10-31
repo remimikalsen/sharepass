@@ -5,11 +5,7 @@
 #   CVE-YYYY-NNNNN exp:YYYY-MM-DD
 # Every entry must say why it is accepted. Review the list when an entry expires or when
 # the base image changes.
-
-# perl-base in the Debian 13 layer of python:3.14-slim. Debian has marked these as
-# affected with no fix available, or fix deferred. perl-base is an Essential package and
-# cannot be removed from the image; nothing in CredShare executes Perl, so the code paths
-# are unreachable at runtime. Re-check with `trivy image python:3.14-slim` before renewing.
-CVE-2026-13221 exp:2026-12-04
-CVE-2026-42496 exp:2026-12-04
-CVE-2026-8376 exp:2026-12-04
+#
+# Currently empty. The perl-base entries accepted in September 2026 (CVE-2026-13221,
+# CVE-2026-42496, CVE-2026-8376) were fixed by Debian in October 2026 and are pulled in
+# by the apt-get upgrade step in Dockerfile.sharepass.

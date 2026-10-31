@@ -1,5 +1,5 @@
 # Stage 1: Build front-end assets
-FROM node:25-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /build
 
 # Copy npm configuration and package files
@@ -28,6 +28,11 @@ RUN npm run build-highlight
 # Stage 2: Final production image
 FROM python:3.14-slim
 WORKDIR /app
+
+# Pull in the Debian security updates published since the base image was built; the
+# slim image routinely lags behind fixes for openssl, sqlite, pcre2 and perl-base.
+RUN apt-get update && apt-get -y upgrade --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
