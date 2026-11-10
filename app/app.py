@@ -471,14 +471,14 @@ async def _ip_usage_has_unique_ip(db):
         pk_columns = [row[1] for row in await cursor.fetchall() if row[5]]
     if pk_columns == ["ip"]:
         return True
-    async with db.execute("PRAGMA index_list(ip_usage)") as cursor:
-        indexes = await cursor.fetchall()
-    for index in indexes:
-        # index: (seq, name, unique, origin, partial)
-        if not index[2] or (len(index) > 4 and index[4]):
-            continue
-        async with db.execute(f'PRAGMA index_info("{index[1]}")') as cursor:
-            columns = [r[2] for r in await cursor.fetchall()]
+    # Table-valued pragma functions take bound parameters, so no SQL is built from strings.
+    async with db.execute(
+        "SELECT name FROM pragma_index_list('ip_usage') WHERE \"unique\" AND NOT partial"
+    ) as cursor:
+        index_names = [row[0] for row in await cursor.fetchall()]
+    for index_name in index_names:
+        async with db.execute("SELECT name FROM pragma_index_info(?)", (index_name,)) as cursor:
+            columns = [row[0] for row in await cursor.fetchall()]
         if columns == ["ip"]:
             return True
     return False

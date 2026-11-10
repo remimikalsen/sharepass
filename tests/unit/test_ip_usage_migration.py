@@ -71,3 +71,18 @@ async def test_store_secret_resets_stale_window(db_path):
     async with aiosqlite.connect(db_path) as db:
         async with db.execute("SELECT uses FROM ip_usage WHERE ip='ip'") as cursor:
             assert await cursor.fetchall() == [(1,)]
+
+
+async def test_init_db_keeps_ip_usage_with_unique_index(db_path):
+    # A table without a PRIMARY KEY but with a UNIQUE index on ip already supports the
+    # constraint, so it is left as is.
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(LEGACY_SCHEMA)
+        await db.execute("CREATE UNIQUE INDEX ip_usage_ip ON ip_usage (ip)")
+        await db.commit()
+
+    await credshare.init_db()
+
+    assert await _pk_columns(db_path) == []
+    _, error, status = await credshare.store_secret("ciphertext", "1.2.3.4")
+    assert (error, status) == (None, 200)
