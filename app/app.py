@@ -457,10 +457,59 @@ async def init_db():
             )
         """
         )
+        await _migrate_ip_usage_primary_key(db)
         await db.execute(
             "CREATE INDEX IF NOT EXISTS idx_secrets_download_code ON secrets (download_code)"
         )
         await db.commit()
+
+
+async def _ip_usage_has_unique_ip(db):
+    """Return True if ip_usage.ip is a PRIMARY KEY or covered by a single-column UNIQUE index."""
+    async with db.execute("PRAGMA table_info(ip_usage)") as cursor:
+        # row: (cid, name, type, notnull, dflt_value, pk)
+        pk_columns = [row[1] for row in await cursor.fetchall() if row[5]]
+    if pk_columns == ["ip"]:
+        return True
+    async with db.execute("PRAGMA index_list(ip_usage)") as cursor:
+        indexes = await cursor.fetchall()
+    for index in indexes:
+        # index: (seq, name, unique, origin, partial)
+        if not index[2] or (len(index) > 4 and index[4]):
+            continue
+        async with db.execute(f'PRAGMA index_info("{index[1]}")') as cursor:
+            columns = [r[2] for r in await cursor.fetchall()]
+        if columns == ["ip"]:
+            return True
+    return False
+
+
+async def _migrate_ip_usage_primary_key(db):
+    """Rebuild ip_usage with ip as PRIMARY KEY if an older schema created it without one.
+
+    CREATE TABLE IF NOT EXISTS leaves an existing table untouched, so databases created
+    by earlier versions can still lack the constraint. Duplicate rows per ip are merged,
+    keeping the highest use count and the latest access time.
+    """
+    if await _ip_usage_has_unique_ip(db):
+        return
+    logger.warning("Migrating ip_usage table: adding PRIMARY KEY on ip")
+    await db.execute("ALTER TABLE ip_usage RENAME TO ip_usage_legacy")
+    await db.execute(
+        """
+        CREATE TABLE ip_usage (
+            ip TEXT PRIMARY KEY,
+            uses INTEGER NOT NULL,
+            last_access DATETIME NOT NULL
+        )
+    """
+    )
+    await db.execute(
+        "INSERT INTO ip_usage (ip, uses, last_access) "
+        "SELECT ip, MAX(uses), MAX(last_access) FROM ip_usage_legacy "
+        "WHERE ip IS NOT NULL GROUP BY ip"
+    )
+    await db.execute("DROP TABLE ip_usage_legacy")
 
 
 async def ip_reached_quota(ip):
@@ -664,9 +713,12 @@ async def store_secret(encrypted_secret, ip):
                 (upload_time, ip),
             )
         else:
+            # Delete-then-insert rather than an upsert: it starts a fresh window whether or
+            # not a stale row exists, and does not depend on ip being a PRIMARY KEY (older
+            # databases created ip_usage without that constraint).
+            await db.execute("DELETE FROM ip_usage WHERE ip=?", (ip,))
             await db.execute(
-                "INSERT INTO ip_usage (ip, uses, last_access) VALUES (?, 1, ?) "
-                "ON CONFLICT(ip) DO UPDATE SET uses=1, last_access=excluded.last_access",
+                "INSERT INTO ip_usage (ip, uses, last_access) VALUES (?, 1, ?)",
                 (ip, upload_time),
             )
         await db.commit()
