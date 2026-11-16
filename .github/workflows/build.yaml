@@ -9,6 +9,12 @@ permissions:
   contents: write   # allows pushing Git tags
   packages: write   # allows pushing to GHCR
 
+# Serialize releases: overlapping runs (e.g. two PRs merged back-to-back) would
+# otherwise compute the same next version and collide when pushing the tag.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -35,8 +41,10 @@ jobs:
           # Fetch all tags (sometimes needed explicitly)
           git fetch --tags --prune
 
-          # Get the latest tag, or 0.0.0 if none
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          # Get the highest semver tag in the repository (not only tags reachable
+          # from HEAD, which can miss a tag pushed by a previous run), or 0.0.0
+          LATEST_TAG=$(git tag --list '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
+          LATEST_TAG=${LATEST_TAG:-0.0.0}
           echo "Latest tag: $LATEST_TAG"
 
           MAJOR=$(echo "$LATEST_TAG" | cut -d '.' -f 1)
@@ -58,6 +66,12 @@ jobs:
           fi
 
           NEXT_VERSION="${NEXT_MAJOR}.${NEXT_MINOR}.${NEXT_PATCH}"
+
+          # Safety net: never reuse a version that is already tagged
+          while git rev-parse -q --verify "refs/tags/$NEXT_VERSION" >/dev/null; do
+            NEXT_PATCH=$((NEXT_PATCH + 1))
+            NEXT_VERSION="${NEXT_MAJOR}.${NEXT_MINOR}.${NEXT_PATCH}"
+          done
           echo "Computed next version: $NEXT_VERSION"
 
           # Export variables
@@ -165,7 +179,19 @@ jobs:
             git commit -m "ci: update VERSION file to $VERSION [skip ci]"
           fi
 
-          git push origin main
+          # main may have moved on (e.g. a previous release run pushed its own
+          # VERSION commit), so rebase onto it before pushing. On conflicts in
+          # VERSION/coverage files, keep this run's values.
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Could not push VERSION commit to main"
+              exit 1
+            fi
+            git pull --rebase -X theirs origin main
+          done
 
       - name: Setup Node.js for npm audit
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
